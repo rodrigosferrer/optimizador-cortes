@@ -98,7 +98,7 @@ function dibujarPlaca(placa, cortes = []) {
     }));
   }
 
-  for (const c of placa.colocaciones) {
+  placa.colocaciones.forEach((c, idx) => {
     const g = document.createElementNS(SVG_NS, 'g');
 
     const rect = document.createElementNS(SVG_NS, 'rect');
@@ -111,9 +111,10 @@ function dibujarPlaca(placa, cortes = []) {
     g.appendChild(rect);
 
     g.appendChild(etiquetaPieza(c));
+    g.appendChild(badgePieza(c, idx + 1));
 
     svg.appendChild(g);
-  }
+  });
 
   // Cut lines on top of pieces
   dibujarCortes(svg, placa, cortes);
@@ -159,6 +160,37 @@ function dibujarCortes(svg, placa, cortes) {
     num.textContent = corte.n;
     svg.appendChild(num);
   }
+}
+
+function badgePieza(c, n) {
+  // Small numbered badge in the top-left corner of the piece, matching the
+  // index shown in the textual list below the SVG.
+  const dim = Math.min(c.ancho, c.alto);
+  const r = Math.max(15, Math.min(dim * 0.09, 38));
+  const margin = r + 6;
+  const cx = c.x + margin;
+  const cy = c.y + margin;
+  const fontSize = r * 1.3;
+
+  const g = document.createElementNS(SVG_NS, 'g');
+  const circle = document.createElementNS(SVG_NS, 'circle');
+  circle.setAttribute('cx', cx); circle.setAttribute('cy', cy);
+  circle.setAttribute('r', r);
+  circle.setAttribute('fill', '#1c1917');
+  circle.setAttribute('stroke', '#fff');
+  circle.setAttribute('stroke-width', 2);
+  g.appendChild(circle);
+
+  const text = document.createElementNS(SVG_NS, 'text');
+  text.setAttribute('x', cx); text.setAttribute('y', cy);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dominant-baseline', 'central');
+  text.setAttribute('font-size', fontSize);
+  text.setAttribute('font-weight', '600');
+  text.setAttribute('fill', '#fff');
+  text.textContent = n;
+  g.appendChild(text);
+  return g;
 }
 
 function etiquetaPieza(c) {
