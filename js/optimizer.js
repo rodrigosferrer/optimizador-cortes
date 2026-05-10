@@ -332,13 +332,35 @@ function formatearPlaca(p) {
   };
 }
 
-// Lower bound on plate count: total piece area / largest available plate area.
-// Optimal layouts can't beat this no matter the algorithm.
+// Lower bound on plate count given heterogeneous stock: greedy from the
+// largest-area type first, respecting per-type stock cantidad. Returns the
+// minimum number of plates whose combined area covers the total piece area.
+// If stock is exhausted before that, returns the entire stock count (caller
+// reports the missing plates separately via placasFaltantes).
 function cotaTeoricaPlacas(piezasColocables, placas) {
   if (piezasColocables.length === 0 || placas.length === 0) return 0;
   const areaPiezas = piezasColocables.reduce((s, p) => s + p.ancho * p.alto, 0);
-  const placaMayor = placas.reduce((mx, p) => Math.max(mx, p.ancho * p.alto), 0);
-  return Math.ceil(areaPiezas / placaMayor);
+  const tipos = [...placas].sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
+
+  let count = 0;
+  let areaCubierta = 0;
+  for (const t of tipos) {
+    const tArea = t.ancho * t.alto;
+    if (tArea <= 0) continue;
+    const cantidad = Math.max(0, t.cantidad || 0);
+    for (let i = 0; i < cantidad && areaCubierta < areaPiezas; i++) {
+      count++;
+      areaCubierta += tArea;
+    }
+    if (areaCubierta >= areaPiezas) break;
+  }
+
+  // Fallback: stock is empty (all cantidad=0). Use largest type alone.
+  if (count === 0) {
+    const placaMayor = tipos[0].ancho * tipos[0].alto;
+    if (placaMayor > 0) return Math.ceil(areaPiezas / placaMayor);
+  }
+  return count;
 }
 
 function calcularMetricas(placas, piezasColocables, stock) {
