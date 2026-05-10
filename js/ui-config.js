@@ -16,6 +16,7 @@ function renderPlacas(proyecto, onChange) {
   const root = document.getElementById('config-placas');
   root.innerHTML = '';
   proyecto.placas.forEach((placa, i) => {
+    if (placa.vetaHorizontal === undefined) placa.vetaHorizontal = true;
     const row = document.createElement('div');
     row.className = 'placa-row';
     row.innerHTML = `
@@ -23,6 +24,13 @@ function renderPlacas(proyecto, onChange) {
       Ancho <input type="number" min="1" value="${placa.ancho}" data-k="ancho">
       Alto <input type="number" min="1" value="${placa.alto}" data-k="alto">
       Cant. <input type="number" min="0" value="${placa.cantidad}" data-k="cantidad">
+      <label title="Dirección de la veta de la placa">
+        Veta:
+        <select data-k="vetaHorizontal">
+          <option value="h" ${placa.vetaHorizontal ? 'selected' : ''}>↔ horizontal</option>
+          <option value="v" ${!placa.vetaHorizontal ? 'selected' : ''}>↕ vertical</option>
+        </select>
+      </label>
       <button data-action="rm" title="Quitar">✕</button>
     `;
     row.querySelectorAll('input').forEach(input => {
@@ -31,6 +39,8 @@ function renderPlacas(proyecto, onChange) {
         onChange();
       };
     });
+    const sel = row.querySelector('select[data-k=vetaHorizontal]');
+    sel.onchange = () => { placa.vetaHorizontal = sel.value === 'h'; onChange(); };
     row.querySelector('[data-action=rm]').onclick = () => {
       proyecto.placas.splice(i, 1);
       if (proyecto.placas.length === 0) proyecto.placas.push(nuevaPlaca());

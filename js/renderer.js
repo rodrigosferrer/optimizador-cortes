@@ -57,6 +57,9 @@ function dibujarPlaca(placa) {
   bg.setAttribute('fill', '#f5e8c8'); bg.setAttribute('stroke', '#333'); bg.setAttribute('stroke-width', 4);
   svg.appendChild(bg);
 
+  // Wood grain lines, drawn behind everything (sobrantes are translucent so grain shows through there)
+  dibujarVeta(svg, placa);
+
   // Draw sobrantes (free rects) first so pieces overlay them
   for (const s of (placa.sobrantes || [])) {
     const r = document.createElementNS(SVG_NS, 'rect');
@@ -104,6 +107,74 @@ function dibujarPlaca(placa) {
     svg.appendChild(g);
   }
   return svg;
+}
+
+function dibujarVeta(svg, placa) {
+  const horizontal = placa.vetaHorizontal !== false;
+  const espaciado = 60; // mm entre líneas de veta
+  const long = horizontal ? placa.ancho : placa.alto;
+  const ancho = horizontal ? placa.alto : placa.ancho;
+
+  for (let pos = espaciado / 2; pos < ancho; pos += espaciado) {
+    const line = document.createElementNS(SVG_NS, 'line');
+    if (horizontal) {
+      line.setAttribute('x1', 0); line.setAttribute('y1', pos);
+      line.setAttribute('x2', long); line.setAttribute('y2', pos);
+    } else {
+      line.setAttribute('x1', pos); line.setAttribute('y1', 0);
+      line.setAttribute('x2', pos); line.setAttribute('y2', long);
+    }
+    line.setAttribute('stroke', '#c9a96a');
+    line.setAttribute('stroke-width', 1);
+    line.setAttribute('opacity', '0.45');
+    svg.appendChild(line);
+  }
+
+  // Indicador "↔ veta" en la esquina inferior izquierda
+  const margen = 25;
+  const largoFlecha = Math.min(placa.ancho, placa.alto) * 0.06;
+  const cy = placa.alto - margen;
+  const cx = margen;
+  const arrow = document.createElementNS(SVG_NS, 'g');
+  const linea = document.createElementNS(SVG_NS, 'line');
+  if (horizontal) {
+    linea.setAttribute('x1', cx); linea.setAttribute('y1', cy);
+    linea.setAttribute('x2', cx + largoFlecha); linea.setAttribute('y2', cy);
+  } else {
+    linea.setAttribute('x1', cx); linea.setAttribute('y1', cy);
+    linea.setAttribute('x2', cx); linea.setAttribute('y2', cy - largoFlecha);
+  }
+  linea.setAttribute('stroke', '#7a5a2a');
+  linea.setAttribute('stroke-width', 4);
+  linea.setAttribute('marker-end', 'url(#flecha-veta)');
+  linea.setAttribute('marker-start', 'url(#flecha-veta)');
+  arrow.appendChild(linea);
+
+  const txt = document.createElementNS(SVG_NS, 'text');
+  txt.setAttribute('x', horizontal ? cx + largoFlecha + 12 : cx + 14);
+  txt.setAttribute('y', horizontal ? cy + 4 : cy - largoFlecha / 2 + 4);
+  txt.setAttribute('font-size', Math.max(28, largoFlecha / 3));
+  txt.setAttribute('fill', '#7a5a2a');
+  txt.textContent = 'veta';
+  arrow.appendChild(txt);
+  svg.appendChild(arrow);
+
+  // Marker definition (only need one per SVG)
+  if (!svg.querySelector('defs')) {
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    const marker = document.createElementNS(SVG_NS, 'marker');
+    marker.setAttribute('id', 'flecha-veta');
+    marker.setAttribute('viewBox', '0 0 10 10');
+    marker.setAttribute('refX', '5'); marker.setAttribute('refY', '5');
+    marker.setAttribute('markerWidth', '5'); marker.setAttribute('markerHeight', '5');
+    marker.setAttribute('orient', 'auto');
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+    path.setAttribute('fill', '#7a5a2a');
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    svg.insertBefore(defs, svg.firstChild);
+  }
 }
 
 function listaPiezas(placa) {

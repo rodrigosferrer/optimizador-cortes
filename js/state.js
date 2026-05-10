@@ -4,7 +4,7 @@ export function proyectoVacio() {
   return {
     nombre: 'Proyecto sin nombre',
     piezas: [],
-    placas: [{ ancho: 2750, alto: 1830, cantidad: 10 }],
+    placas: [{ ancho: 2750, alto: 1830, cantidad: 10, vetaHorizontal: true }],
     config: { kerf: 3, margenPlaca: 0 },
   };
 }
@@ -46,7 +46,7 @@ export function nuevaPieza() {
 }
 
 export function nuevaPlaca() {
-  return { ancho: 2750, alto: 1830, cantidad: 1 };
+  return { ancho: 2750, alto: 1830, cantidad: 1, vetaHorizontal: true };
 }
 
 function validarProyecto(p) {

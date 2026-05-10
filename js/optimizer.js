@@ -262,6 +262,7 @@ function abrirPlaca(tipo, margen) {
   return {
     ancho: tipo.ancho,
     alto: tipo.alto,
+    vetaHorizontal: tipo.vetaHorizontal !== false,
     libres: [{ x: margen, y: margen, ancho: tipo.ancho - 2 * margen, alto: tipo.alto - 2 * margen }],
     colocaciones: [],
   };
@@ -302,7 +303,13 @@ function expandirPiezas(piezas) {
 
 function formatearPlaca(p) {
   const sobrantes = p.libres.filter(l => l.ancho >= 5 && l.alto >= 5);
-  return { ancho: p.ancho, alto: p.alto, colocaciones: p.colocaciones, sobrantes };
+  return {
+    ancho: p.ancho,
+    alto: p.alto,
+    vetaHorizontal: p.vetaHorizontal,
+    colocaciones: p.colocaciones,
+    sobrantes,
+  };
 }
 
 // Lower bound on plate count: total piece area / largest available plate area.
