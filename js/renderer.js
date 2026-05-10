@@ -40,12 +40,20 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
   `;
   container.appendChild(resumen);
 
+  // Scale plates proportionally so a small plate visually looks smaller
+  // than a large one. The widest plate fills the available width; others
+  // are sized proportionally.
+  const maxAncho = Math.max(...resultado.placas.map(p => p.ancho), 1);
+
   resultado.placas.forEach((placa, i) => {
     const cortes = planCortes(placa, kerf);
     const wrap = document.createElement('div');
     wrap.className = 'placa-wrap';
     wrap.innerHTML = `<h3>Placa ${i + 1} — ${placa.ancho}×${placa.alto} mm</h3>`;
-    wrap.appendChild(dibujarPlaca(placa, cortes, nombrePorPiezaId));
+    const svg = dibujarPlaca(placa, cortes, nombrePorPiezaId);
+    const pct = (placa.ancho / maxAncho) * 100;
+    svg.style.width = pct + '%';
+    wrap.appendChild(svg);
     const detalle = document.createElement('div');
     detalle.className = 'placa-detalle';
     detalle.appendChild(listaPiezas(placa));

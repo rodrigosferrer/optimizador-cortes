@@ -175,7 +175,7 @@ function colocarPieza(item, placasAbiertas, stock, kerf, margen) {
   for (const placa of placasAbiertas) {
     if (intentarColocar(item, placa, kerf)) return true;
   }
-  const tipo = elegirTipoStock(stock);
+  const tipo = elegirTipoStock(stock, item.pieza, margen);
   if (!tipo) return false;
   const nueva = abrirPlaca(tipo, margen);
   placasAbiertas.push(nueva);
@@ -265,16 +265,41 @@ function abrirPlaca(tipo, margen) {
   };
 }
 
-function elegirTipoStock(stock) {
+function elegirTipoStock(stock, pieza, margen) {
+  if (stock.length === 0) return null;
+
+  // 1. Honor user's order: first type with stock AND room for the piece.
   for (const s of stock) {
-    if (s.cantidad > 0) {
+    if (s.cantidad > 0 && piezaCabeEnTipo(pieza, s, margen)) {
       s.cantidad--;
       return s;
     }
   }
-  if (stock.length === 0) return null;
-  stock[0].faltantes = (stock[0].faltantes || 0) + 1;
-  return stock[0];
+
+  // 2. Nothing in user's order works for this piece. Pick the largest type
+  //    that physically accommodates it. Prefer one with stock; otherwise
+  //    increment faltantes on it (caller reports missing plates).
+  const compatibles = stock
+    .filter(s => piezaCabeEnTipo(pieza, s, margen))
+    .sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
+  if (compatibles.length === 0) return null;
+
+  const conStock = compatibles.find(s => s.cantidad > 0);
+  if (conStock) { conStock.cantidad--; return conStock; }
+
+  const elegido = compatibles[0];
+  elegido.faltantes = (elegido.faltantes || 0) + 1;
+  return elegido;
+}
+
+function piezaCabeEnTipo(pieza, tipo, margen) {
+  const w = tipo.ancho - 2 * margen;
+  const h = tipo.alto - 2 * margen;
+  const placaSim = { ancho: tipo.ancho, alto: tipo.alto, vetaHorizontal: tipo.vetaHorizontal !== false };
+  for (const ori of orientacionesPermitidas(pieza, placaSim)) {
+    if (ori.w <= w && ori.h <= h) return true;
+  }
+  return false;
 }
 
 function cabeEnAlgunStock(pieza, placas, margen) {
