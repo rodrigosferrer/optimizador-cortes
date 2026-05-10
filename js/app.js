@@ -72,6 +72,41 @@ function bootstrap() {
   };
 
   document.getElementById('btn-imprimir').onclick = () => window.print();
+
+  inicializarSplitter();
+}
+
+function inicializarSplitter() {
+  const splitter = document.getElementById('splitter');
+  if (!splitter) return;
+  const KEY = 'optimizador_cortes:configWidth';
+  const guardado = parseFloat(localStorage.getItem(KEY));
+  if (Number.isFinite(guardado)) {
+    document.documentElement.style.setProperty('--config-width', guardado + 'px');
+  }
+
+  let arrastrando = false;
+  splitter.onmousedown = (e) => {
+    arrastrando = true;
+    splitter.classList.add('dragging');
+    document.body.classList.add('splitter-dragging');
+    e.preventDefault();
+  };
+  document.addEventListener('mousemove', (e) => {
+    if (!arrastrando) return;
+    const padding = 16;
+    let w = e.clientX - padding;
+    w = Math.max(220, Math.min(w, window.innerWidth - 320));
+    document.documentElement.style.setProperty('--config-width', w + 'px');
+  });
+  document.addEventListener('mouseup', () => {
+    if (!arrastrando) return;
+    arrastrando = false;
+    splitter.classList.remove('dragging');
+    document.body.classList.remove('splitter-dragging');
+    const w = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--config-width'));
+    if (Number.isFinite(w)) localStorage.setItem(KEY, w);
+  });
 }
 
 function descargar(blob, nombre) {

@@ -18,10 +18,33 @@ header h1 { margin: 0; font-size: 1.3em; }
 
 main {
   display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 16px;
+  grid-template-columns: var(--config-width, 380px) 8px 1fr;
+  gap: 8px;
   padding: 16px;
 }
+
+.splitter {
+  background: transparent;
+  cursor: col-resize;
+  position: relative;
+  user-select: none;
+}
+.splitter::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--border);
+  transform: translateX(-50%);
+  transition: background 0.15s;
+}
+.splitter:hover::before, .splitter.dragging::before {
+  background: var(--accent);
+  width: 4px;
+}
+body.splitter-dragging { cursor: col-resize; user-select: none; }
+body.splitter-dragging * { cursor: col-resize !important; }
 
 .config-panel, .resultado-panel {
   background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
