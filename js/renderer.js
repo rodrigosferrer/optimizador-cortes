@@ -51,6 +51,30 @@ function dibujarPlaca(placa) {
   bg.setAttribute('fill', '#f5e8c8'); bg.setAttribute('stroke', '#333'); bg.setAttribute('stroke-width', 4);
   svg.appendChild(bg);
 
+  // Draw sobrantes (free rects) first so pieces overlay them
+  for (const s of (placa.sobrantes || [])) {
+    const r = document.createElementNS(SVG_NS, 'rect');
+    r.setAttribute('x', s.x); r.setAttribute('y', s.y);
+    r.setAttribute('width', s.ancho); r.setAttribute('height', s.alto);
+    r.setAttribute('fill', '#ddd');
+    r.setAttribute('fill-opacity', '0.5');
+    r.setAttribute('stroke', '#888');
+    r.setAttribute('stroke-width', 1);
+    r.setAttribute('stroke-dasharray', '12 8');
+    svg.appendChild(r);
+
+    const t = document.createElementNS(SVG_NS, 'text');
+    t.setAttribute('x', s.x + s.ancho / 2);
+    t.setAttribute('y', s.y + s.alto / 2);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('dominant-baseline', 'middle');
+    t.setAttribute('font-size', Math.max(30, Math.min(s.ancho, s.alto) / 10));
+    t.setAttribute('fill', '#666');
+    t.setAttribute('font-style', 'italic');
+    t.textContent = `sobra ${Math.round(s.ancho)}×${Math.round(s.alto)}`;
+    svg.appendChild(t);
+  }
+
   for (const c of placa.colocaciones) {
     const g = document.createElementNS(SVG_NS, 'g');
 

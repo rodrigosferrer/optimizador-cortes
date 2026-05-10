@@ -1,30 +1,62 @@
 // Pure module: pieces + plates + config -> layout result.
 // No DOM, no localStorage, no globals.
 
+const ESTRATEGIAS = [
+  { nombre: 'area-desc', cmp: (p, q) => (q.ancho * q.alto) - (p.ancho * p.alto) },
+  { nombre: 'lado-mayor-desc', cmp: (p, q) => Math.max(q.ancho, q.alto) - Math.max(p.ancho, p.alto) },
+  { nombre: 'alto-desc', cmp: (p, q) => q.alto - p.alto },
+  { nombre: 'ancho-desc', cmp: (p, q) => q.ancho - p.ancho },
+  { nombre: 'perimetro-desc', cmp: (p, q) => (q.ancho + q.alto) - (p.ancho + p.alto) },
+];
+
 export function optimizar({ piezas, placas, config }) {
   const kerf = config.kerf || 0;
   const margen = config.margenPlaca || 0;
 
   const expandidas = expandirPiezas(piezas);
-  expandidas.sort((p, q) => (q.ancho * q.alto) - (p.ancho * p.alto));
+  const colocables = expandidas.filter(p => cabeEnAlgunStock(p, placas, margen));
+  const noColocables = expandidas.filter(p => !cabeEnAlgunStock(p, placas, margen));
 
-  const stock = [...placas.map(p => ({ ...p }))];
-  const placasAbiertas = [];
-  const errores = [];
-  const piezasColocables = [];
-
-  for (const pieza of expandidas) {
-    if (!cabeEnAlgunStock(pieza, placas, margen)) {
-      errores.push(`La pieza '${pieza.nombre}' no entra en ninguna placa stock`);
-      continue;
-    }
-    piezasColocables.push(pieza);
-    const colocada = colocarPieza(pieza, placasAbiertas, stock, kerf, margen);
-    if (!colocada) errores.push(`No se pudo colocar la pieza '${pieza.nombre}'`);
+  let mejorRun = null;
+  for (const estrategia of ESTRATEGIAS) {
+    const ordenadas = [...colocables].sort(estrategia.cmp);
+    const run = correr(ordenadas, placas, kerf, margen);
+    run.estrategia = estrategia.nombre;
+    if (esMejor(run, mejorRun)) mejorRun = run;
   }
 
-  const metricas = calcularMetricas(placasAbiertas, piezasColocables, stock);
-  return { placas: placasAbiertas.map(formatearPlaca), metricas, errores };
+  const errores = noColocables.map(p => `La pieza '${p.nombre}' no entra en ninguna placa stock`);
+
+  const metricas = calcularMetricas(mejorRun.placasAbiertas, colocables, mejorRun.stock);
+  metricas.estrategia = mejorRun.estrategia;
+  return {
+    placas: mejorRun.placasAbiertas.map(formatearPlaca),
+    metricas,
+    errores,
+  };
+}
+
+function correr(piezasOrdenadas, placas, kerf, margen) {
+  const stock = [...placas.map(p => ({ ...p }))];
+  const placasAbiertas = [];
+  for (const pieza of piezasOrdenadas) {
+    colocarPieza(pieza, placasAbiertas, stock, kerf, margen);
+  }
+  return { placasAbiertas, stock };
+}
+
+function esMejor(run, mejor) {
+  if (!mejor) return true;
+  const a = run.placasAbiertas.length;
+  const b = mejor.placasAbiertas.length;
+  if (a !== b) return a < b;
+  // Same plate count: prefer the one with smaller total free area on the LAST plate
+  // (concentrates waste so it might be reusable as a leftover slab).
+  const lastA = run.placasAbiertas[run.placasAbiertas.length - 1];
+  const lastB = mejor.placasAbiertas[mejor.placasAbiertas.length - 1];
+  const usadaA = lastA ? lastA.colocaciones.reduce((s, c) => s + c.ancho * c.alto, 0) : 0;
+  const usadaB = lastB ? lastB.colocaciones.reduce((s, c) => s + c.ancho * c.alto, 0) : 0;
+  return usadaA < usadaB;
 }
 
 function cabeEnAlgunStock(pieza, placas, margen) {
@@ -137,7 +169,9 @@ function intentarColocar(pieza, placa, kerf) {
 }
 
 function formatearPlaca(p) {
-  return { ancho: p.ancho, alto: p.alto, colocaciones: p.colocaciones };
+  // Filter out trivially small free rects (<5mm) to avoid label noise.
+  const sobrantes = p.libres.filter(l => l.ancho >= 5 && l.alto >= 5);
+  return { ancho: p.ancho, alto: p.alto, colocaciones: p.colocaciones, sobrantes };
 }
 
 function calcularMetricas(placas, piezasColocables, stock) {
@@ -146,7 +180,6 @@ function calcularMetricas(placas, piezasColocables, stock) {
   const areaPiezas = piezasColocables.reduce((s, p) => s + p.ancho * p.alto, 0);
   const areaTotal = placas.reduce((s, p) => s + p.ancho * p.alto, 0);
   const aprovechamiento = areaTotal > 0 ? areaPiezas / areaTotal : 0;
-  // Each piece needs at most 2 cuts to isolate. Useful upper bound for small layouts.
   const cortesTotales = placas.reduce((s, p) => s + p.colocaciones.length * 2, 0);
   return {
     placasUsadas,
