@@ -171,6 +171,27 @@ button.icon-only:hover { background: var(--border-soft); color: var(--fg); }
 button .ico { width: 16px; height: 16px; flex: 0 0 auto; }
 button.primary .ico { color: #fff; }
 
+/* === Project name === */
+.proyecto-nombre {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.proyecto-nombre label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.proyecto-nombre input {
+  width: 100%;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 8px 10px;
+}
+
 /* === Form controls === */
 input[type=number], input[type=text], select {
   padding: 6px 10px;

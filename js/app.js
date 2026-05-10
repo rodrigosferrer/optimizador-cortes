@@ -15,9 +15,27 @@ function onChange() {
 function bootstrap() {
   // Buttons must be created BEFORE uiPiezas.montar(), which wires up #btn-agregar-pieza.
   montarBotones();
+  montarNombre();
   uiConfig.montar(proyecto, onChange);
   uiPiezas.montar(proyecto, onChange);
   inicializarSplitter();
+}
+
+function montarNombre() {
+  const input = document.getElementById('cfg-nombre');
+  const titulo = document.querySelector('header h1');
+  const sincronizarTitulo = () => {
+    const nombre = (proyecto.nombre || '').trim();
+    titulo.textContent = nombre ? `Optimizador · ${nombre}` : 'Optimizador de Cortes';
+    document.title = nombre ? `${nombre} — Optimizador de Cortes` : 'Optimizador de Cortes';
+  };
+  input.value = proyecto.nombre === 'Proyecto sin nombre' ? '' : (proyecto.nombre || '');
+  input.oninput = () => {
+    proyecto.nombre = input.value || 'Proyecto sin nombre';
+    sincronizarTitulo();
+    onChange();
+  };
+  sincronizarTitulo();
 }
 
 function montarBotones() {
