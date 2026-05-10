@@ -34,7 +34,7 @@ test('one piece fits in one plate at origin', () => {
   assertEq([c.x, c.y, c.ancho, c.alto, c.rotada], [0, 0, 600, 400, false]);
 });
 
-test('two pieces side by side use one plate', () => {
+test('two pieces fit in one plate (no waste of second plate)', () => {
   const r = optimizar({
     piezas: [
       { id: 'a', nombre: 'A', ancho: 1000, alto: 500, cantidad: 1, rotable: true },
@@ -46,8 +46,10 @@ test('two pieces side by side use one plate', () => {
   assertEq(r.metricas.placasUsadas, 1);
   assertEq(r.placas[0].colocaciones.length, 2);
   assertEq(r.errores, []);
-  const xs = r.placas[0].colocaciones.map(c => c.x).sort((a, b) => a - b);
-  assertEq(xs, [0, 1000]);
+  const [c1, c2] = r.placas[0].colocaciones;
+  const overlap = c1.x < c2.x + c2.ancho && c2.x < c1.x + c1.ancho
+               && c1.y < c2.y + c2.alto && c2.y < c1.y + c1.alto;
+  assert(!overlap, 'pieces should not overlap');
 });
 
 test('two pieces stacked vertically use one plate', () => {

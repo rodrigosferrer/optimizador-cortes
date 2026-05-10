@@ -64,16 +64,48 @@ function abrirPlaca(tipo, margen) {
 }
 
 function intentarColocar(pieza, placa, kerf) {
-  const libre = placa.libres.find(l => l.ancho >= pieza.ancho && l.alto >= pieza.alto);
-  if (!libre) return false;
+  let mejor = null;
+  let mejorScore = Infinity;
+  for (const libre of placa.libres) {
+    if (libre.ancho < pieza.ancho || libre.alto < pieza.alto) continue;
+    const sobraW = libre.ancho - pieza.ancho;
+    const sobraH = libre.alto - pieza.alto;
+    const score = Math.min(sobraW, sobraH);
+    if (score < mejorScore) { mejor = libre; mejorScore = score; }
+  }
+  if (!mejor) return false;
+
   placa.colocaciones.push({
     piezaId: pieza.id,
     nombre: pieza.nombre,
-    x: libre.x, y: libre.y,
+    x: mejor.x, y: mejor.y,
     ancho: pieza.ancho, alto: pieza.alto,
     rotada: false,
   });
-  placa.libres = placa.libres.filter(l => l !== libre);
+
+  const sobraW = mejor.ancho - pieza.ancho;
+  const sobraH = mejor.alto - pieza.alto;
+  const ocupadoW = pieza.ancho + kerf;
+  const ocupadoH = pieza.alto + kerf;
+
+  const nuevos = [];
+  if (sobraW > sobraH) {
+    if (mejor.ancho - ocupadoW > 0) {
+      nuevos.push({ x: mejor.x + ocupadoW, y: mejor.y, ancho: mejor.ancho - ocupadoW, alto: mejor.alto });
+    }
+    if (mejor.alto - ocupadoH > 0) {
+      nuevos.push({ x: mejor.x, y: mejor.y + ocupadoH, ancho: pieza.ancho, alto: mejor.alto - ocupadoH });
+    }
+  } else {
+    if (mejor.alto - ocupadoH > 0) {
+      nuevos.push({ x: mejor.x, y: mejor.y + ocupadoH, ancho: mejor.ancho, alto: mejor.alto - ocupadoH });
+    }
+    if (mejor.ancho - ocupadoW > 0) {
+      nuevos.push({ x: mejor.x + ocupadoW, y: mejor.y, ancho: mejor.ancho - ocupadoW, alto: pieza.alto });
+    }
+  }
+
+  placa.libres = placa.libres.filter(l => l !== mejor).concat(nuevos);
   return true;
 }
 
