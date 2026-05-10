@@ -60,9 +60,17 @@ th { background: #f0f0f0; font-size: 0.9em; }
 
 .errores { background: #fee; border: 1px solid var(--warn); padding: 8px; border-radius: 4px; margin-bottom: 12px; }
 
-.placa-wrap { margin-bottom: 24px; }
-.placa-svg { display: block; max-width: 100%; height: auto; border: 1px solid #888; }
-.lista-piezas { font-size: 0.9em; columns: 2; }
+.placa-wrap { margin-bottom: 24px; max-width: 1400px; }
+.placa-svg { display: block; width: 100%; height: auto; border: 1px solid #888; }
+.placa-detalle { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.placa-detalle h4 { margin: 0 0 6px 0; font-size: 0.95em; color: #444; }
+.lista-piezas, .lista-cortes { font-size: 0.9em; margin: 0; padding-left: 22px; }
+.lista-piezas { columns: 2; }
+.lista-cortes li { margin-bottom: 2px; }
+@media (max-width: 800px) {
+  .placa-detalle { grid-template-columns: 1fr; }
+  .lista-piezas { columns: 1; }
+}
 
 @media print {
   header, .config-panel, .acciones-resultado, .errores, button { display: none !important; }

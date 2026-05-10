@@ -18,20 +18,28 @@ function render(proyecto, onChange) {
   tbody.innerHTML = '';
   proyecto.piezas.forEach((p, i) => {
     const tr = document.createElement('tr');
+    const veta = p.vetaDireccion || 'libre';
     tr.innerHTML = `
       <td><input type="text" class="nombre" value="${escapeAttr(p.nombre)}"></td>
       <td><input type="number" min="1" value="${p.ancho}"></td>
       <td><input type="number" min="1" value="${p.alto}"></td>
       <td><input type="number" min="1" value="${p.cantidad}"></td>
-      <td style="text-align:center"><input type="checkbox" ${p.rotable ? 'checked' : ''}></td>
+      <td>
+        <select title="Dirección de la veta de la pieza">
+          <option value="libre" ${veta === 'libre' ? 'selected' : ''}>libre</option>
+          <option value="ancho" ${veta === 'ancho' ? 'selected' : ''}>↔ ancho</option>
+          <option value="alto"  ${veta === 'alto'  ? 'selected' : ''}>↕ alto</option>
+        </select>
+      </td>
       <td><button title="Quitar">✕</button></td>
     `;
     const inputs = tr.querySelectorAll('input');
+    const sel = tr.querySelector('select');
     inputs[0].oninput = () => { p.nombre = inputs[0].value; onChange(); };
     inputs[1].oninput = () => { p.ancho = Number(inputs[1].value) || 0; onChange(); };
     inputs[2].oninput = () => { p.alto = Number(inputs[2].value) || 0; onChange(); };
     inputs[3].oninput = () => { p.cantidad = Number(inputs[3].value) || 0; onChange(); };
-    inputs[4].onchange = () => { p.rotable = inputs[4].checked; onChange(); };
+    sel.onchange = () => { p.vetaDireccion = sel.value; onChange(); };
     tr.querySelector('button').onclick = () => {
       proyecto.piezas.splice(i, 1);
       render(proyecto, onChange);

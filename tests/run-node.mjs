@@ -23,7 +23,7 @@ test('empty input returns empty result', () => {
 
 test('one piece fits in one plate at origin', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 600, alto: 400, cantidad: 1, rotable: false }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 600, alto: 400, cantidad: 1, vetaDireccion: 'ancho' }],
     placas: [{ ancho: 2750, alto: 1830, cantidad: 5 }],
     config: { kerf: 0, margenPlaca: 0 },
   });
@@ -37,8 +37,8 @@ test('one piece fits in one plate at origin', () => {
 test('two pieces fit in one plate (no waste of second plate)', () => {
   const r = optimizar({
     piezas: [
-      { id: 'a', nombre: 'A', ancho: 1000, alto: 500, cantidad: 1, rotable: true },
-      { id: 'b', nombre: 'B', ancho: 800, alto: 500, cantidad: 1, rotable: true },
+      { id: 'a', nombre: 'A', ancho: 1000, alto: 500, cantidad: 1, vetaDireccion: 'libre' },
+      { id: 'b', nombre: 'B', ancho: 800, alto: 500, cantidad: 1, vetaDireccion: 'libre' },
     ],
     placas: [{ ancho: 2750, alto: 1830, cantidad: 1 }],
     config: { kerf: 0, margenPlaca: 0 },
@@ -55,8 +55,8 @@ test('two pieces fit in one plate (no waste of second plate)', () => {
 test('two pieces stacked vertically use one plate', () => {
   const r = optimizar({
     piezas: [
-      { id: 'a', nombre: 'A', ancho: 2000, alto: 800, cantidad: 1, rotable: true },
-      { id: 'b', nombre: 'B', ancho: 2000, alto: 600, cantidad: 1, rotable: true },
+      { id: 'a', nombre: 'A', ancho: 2000, alto: 800, cantidad: 1, vetaDireccion: 'libre' },
+      { id: 'b', nombre: 'B', ancho: 2000, alto: 600, cantidad: 1, vetaDireccion: 'libre' },
     ],
     placas: [{ ancho: 2750, alto: 1830, cantidad: 1 }],
     config: { kerf: 0, margenPlaca: 0 },
@@ -67,7 +67,7 @@ test('two pieces stacked vertically use one plate', () => {
 
 test('kerf 3mm forces extra plate when pieces tight', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 50, alto: 100, cantidad: 2, rotable: false }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 50, alto: 100, cantidad: 2, vetaDireccion: 'ancho' }],
     placas: [{ ancho: 100, alto: 100, cantidad: 5 }],
     config: { kerf: 3, margenPlaca: 0 },
   });
@@ -76,7 +76,7 @@ test('kerf 3mm forces extra plate when pieces tight', () => {
 
 test('kerf 0 packs both pieces in one plate', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 50, alto: 100, cantidad: 2, rotable: false }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 50, alto: 100, cantidad: 2, vetaDireccion: 'ancho' }],
     placas: [{ ancho: 100, alto: 100, cantidad: 5 }],
     config: { kerf: 0, margenPlaca: 0 },
   });
@@ -85,7 +85,7 @@ test('kerf 0 packs both pieces in one plate', () => {
 
 test('rotable piece rotates to fit', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 100, alto: 600, cantidad: 1, rotable: true }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 100, alto: 600, cantidad: 1, vetaDireccion: 'libre' }],
     placas: [{ ancho: 700, alto: 150, cantidad: 1 }],
     config: { kerf: 0, margenPlaca: 0 },
   });
@@ -97,7 +97,7 @@ test('rotable piece rotates to fit', () => {
 
 test('non-rotable piece does not rotate', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 100, alto: 600, cantidad: 1, rotable: false }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 100, alto: 600, cantidad: 1, vetaDireccion: 'ancho' }],
     placas: [{ ancho: 700, alto: 150, cantidad: 1 }],
     config: { kerf: 0, margenPlaca: 0 },
   });
@@ -106,7 +106,7 @@ test('non-rotable piece does not rotate', () => {
 
 test('stock insufficient: places all pieces and reports faltantes', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 2000, alto: 1500, cantidad: 5, rotable: false }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 2000, alto: 1500, cantidad: 5, vetaDireccion: 'ancho' }],
     placas: [{ ancho: 2750, alto: 1830, cantidad: 1 }],
     config: { kerf: 0, margenPlaca: 0 },
   });
@@ -118,7 +118,7 @@ test('stock insufficient: places all pieces and reports faltantes', () => {
 
 test('stock sufficient: placasFaltantes is 0', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 2000, alto: 1500, cantidad: 2, rotable: false }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 2000, alto: 1500, cantidad: 2, vetaDireccion: 'ancho' }],
     placas: [{ ancho: 2750, alto: 1830, cantidad: 5 }],
     config: { kerf: 0, margenPlaca: 0 },
   });
@@ -128,8 +128,8 @@ test('stock sufficient: placasFaltantes is 0', () => {
 test('piece bigger than stock yields error, others still placed', () => {
   const r = optimizar({
     piezas: [
-      { id: 'a', nombre: 'Gigante', ancho: 5000, alto: 5000, cantidad: 1, rotable: true },
-      { id: 'b', nombre: 'Normal', ancho: 600, alto: 400, cantidad: 1, rotable: true },
+      { id: 'a', nombre: 'Gigante', ancho: 5000, alto: 5000, cantidad: 1, vetaDireccion: 'libre' },
+      { id: 'b', nombre: 'Normal', ancho: 600, alto: 400, cantidad: 1, vetaDireccion: 'libre' },
     ],
     placas: [{ ancho: 2750, alto: 1830, cantidad: 5 }],
     config: { kerf: 0, margenPlaca: 0 },

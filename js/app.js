@@ -68,7 +68,7 @@ function bootstrap() {
       return;
     }
     const r = optimizar(proyecto);
-    renderResultado(document.getElementById('resultado'), r);
+    renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0);
   };
 
   document.getElementById('btn-imprimir').onclick = () => window.print();

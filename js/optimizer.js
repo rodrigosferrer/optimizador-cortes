@@ -184,10 +184,7 @@ function colocarPieza(item, placasAbiertas, stock, kerf, margen) {
 
 function intentarColocar(item, placa, kerf) {
   const { pieza, pRule, sRule } = item;
-  const orientaciones = pieza.rotable && pieza.ancho !== pieza.alto
-    ? [{ w: pieza.ancho, h: pieza.alto, rotada: false },
-       { w: pieza.alto, h: pieza.ancho, rotada: true }]
-    : [{ w: pieza.ancho, h: pieza.alto, rotada: false }];
+  const orientaciones = orientacionesPermitidas(pieza, placa);
 
   let mejor = null;
   let mejorScore = Infinity;
@@ -284,11 +281,34 @@ function cabeEnAlgunStock(pieza, placas, margen) {
   for (const tipo of placas) {
     const w = tipo.ancho - 2 * margen;
     const h = tipo.alto - 2 * margen;
-    const fits = pieza.ancho <= w && pieza.alto <= h;
-    const fitsRot = pieza.rotable && pieza.ancho <= h && pieza.alto <= w;
-    if (fits || fitsRot) return true;
+    const placaSim = { ancho: tipo.ancho, alto: tipo.alto, vetaHorizontal: tipo.vetaHorizontal !== false };
+    for (const ori of orientacionesPermitidas(pieza, placaSim)) {
+      if (ori.w <= w && ori.h <= h) return true;
+    }
   }
   return false;
+}
+
+// Return the orientations a piece is allowed to take given the plate's grain direction.
+// vetaDireccion: 'libre' (any), 'ancho' (grain along piece's ancho axis), 'alto' (grain along piece's alto axis).
+// placa.vetaHorizontal: true (grain along plate width), false (grain along plate height).
+function orientacionesPermitidas(pieza, placa) {
+  const direccion = pieza.vetaDireccion || 'libre';
+  const noRotada = { w: pieza.ancho, h: pieza.alto, rotada: false };
+  const rotada   = { w: pieza.alto,  h: pieza.ancho, rotada: true  };
+
+  if (direccion === 'libre') {
+    return pieza.ancho === pieza.alto ? [noRotada] : [noRotada, rotada];
+  }
+  // Grain must align with plate grain.
+  // Piece's grain axis (in non-rotated state): 'ancho' or 'alto'.
+  // After rotation 90°, what was 'ancho' axis becomes 'alto' axis and vice versa.
+  // Plate grain axis: 'ancho' if vetaHorizontal else 'alto'.
+  const ejePlaca = placa.vetaHorizontal !== false ? 'ancho' : 'alto';
+  // Piece's grain axis in NON-rotated state is `direccion`.
+  // After rotation, piece's grain axis flips to the other.
+  if (direccion === ejePlaca) return [noRotada];
+  return pieza.ancho !== pieza.alto ? [rotada] : [noRotada];
 }
 
 function expandirPiezas(piezas) {

@@ -1,10 +1,11 @@
 // Minimal CSV: comma-separated, simple double-quote handling.
-// Header: nombre,ancho,alto,cantidad,rotable
-// Boolean: 'si'/'no' (also accepts 'true'/'false', '1'/'0').
+// Header: nombre,ancho,alto,cantidad,veta
+// veta: 'libre' | 'ancho' | 'alto' (case-insensitive)
 
 import { nuevaPieza } from './state.js';
 
-const HEADER = ['nombre', 'ancho', 'alto', 'cantidad', 'rotable'];
+const HEADER = ['nombre', 'ancho', 'alto', 'cantidad', 'veta'];
+const VETAS_VALIDAS = ['libre', 'ancho', 'alto'];
 
 export function parsearCSV(texto) {
   const lineas = texto.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean);
@@ -22,14 +23,16 @@ export function parsearCSV(texto) {
     const ancho = Number(cells[idx.ancho]);
     const alto = Number(cells[idx.alto]);
     const cantidad = Number(cells[idx.cantidad]);
+    const vetaRaw = String(cells[idx.veta] || '').toLowerCase().trim();
     if (!Number.isFinite(ancho) || ancho <= 0) throw new Error(`Fila ${i + 1}: ancho inválido`);
     if (!Number.isFinite(alto) || alto <= 0) throw new Error(`Fila ${i + 1}: alto inválido`);
     if (!Number.isFinite(cantidad) || cantidad < 1) throw new Error(`Fila ${i + 1}: cantidad inválida`);
+    if (!VETAS_VALIDAS.includes(vetaRaw)) throw new Error(`Fila ${i + 1}: veta debe ser libre/ancho/alto`);
     piezas.push({
       ...nuevaPieza(),
       nombre: cells[idx.nombre] || `Pieza ${i}`,
       ancho, alto, cantidad,
-      rotable: parseBool(cells[idx.rotable]),
+      vetaDireccion: vetaRaw,
     });
   }
   return piezas;
@@ -41,7 +44,7 @@ export function serializarCSV(piezas) {
     filas.push([
       escapar(p.nombre),
       p.ancho, p.alto, p.cantidad,
-      p.rotable ? 'si' : 'no',
+      p.vetaDireccion || 'libre',
     ].join(','));
   }
   return filas.join('\n');
@@ -56,7 +59,3 @@ function escapar(s) {
   return s;
 }
 
-function parseBool(v) {
-  const s = String(v).toLowerCase().trim();
-  return s === 'si' || s === 'sí' || s === 'true' || s === '1' || s === 'yes';
-}

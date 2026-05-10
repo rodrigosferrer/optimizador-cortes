@@ -1,9 +1,10 @@
 // Renders the optimizer result into an HTML container as SVG.
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const VIEWPORT_PX = 700;
+import { planCortes } from './cuts.js';
 
-export function render(container, resultado) {
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+export function render(container, resultado, kerf = 0) {
   container.innerHTML = '';
 
   if (resultado.errores.length > 0) {
@@ -33,22 +34,24 @@ export function render(container, resultado) {
   container.appendChild(resumen);
 
   resultado.placas.forEach((placa, i) => {
+    const cortes = planCortes(placa, kerf);
     const wrap = document.createElement('div');
     wrap.className = 'placa-wrap';
     wrap.innerHTML = `<h3>Placa ${i + 1} — ${placa.ancho}×${placa.alto} mm</h3>`;
-    wrap.appendChild(dibujarPlaca(placa));
-    wrap.appendChild(listaPiezas(placa));
+    wrap.appendChild(dibujarPlaca(placa, cortes));
+    const detalle = document.createElement('div');
+    detalle.className = 'placa-detalle';
+    detalle.appendChild(listaPiezas(placa));
+    detalle.appendChild(listaCortes(cortes));
+    wrap.appendChild(detalle);
     container.appendChild(wrap);
   });
 }
 
-function dibujarPlaca(placa) {
-  const escala = VIEWPORT_PX / placa.ancho;
-  const altoPx = placa.alto * escala;
+function dibujarPlaca(placa, cortes = []) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${placa.ancho} ${placa.alto}`);
-  svg.setAttribute('width', VIEWPORT_PX);
-  svg.setAttribute('height', altoPx);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('class', 'placa-svg');
 
   const bg = document.createElementNS(SVG_NS, 'rect');
@@ -95,7 +98,51 @@ function dibujarPlaca(placa) {
 
     svg.appendChild(g);
   }
+
+  // Cut lines on top of pieces
+  dibujarCortes(svg, placa, cortes);
+
   return svg;
+}
+
+function dibujarCortes(svg, placa, cortes) {
+  const dim = Math.min(placa.ancho, placa.alto);
+  const fontSize = Math.max(40, dim * 0.025);
+  for (const corte of cortes) {
+    const line = document.createElementNS(SVG_NS, 'line');
+    if (corte.tipo === 'horizontal') {
+      line.setAttribute('x1', corte.desde); line.setAttribute('y1', corte.pos);
+      line.setAttribute('x2', corte.hasta); line.setAttribute('y2', corte.pos);
+    } else {
+      line.setAttribute('x1', corte.pos); line.setAttribute('y1', corte.desde);
+      line.setAttribute('x2', corte.pos); line.setAttribute('y2', corte.hasta);
+    }
+    line.setAttribute('stroke', '#d0021b');
+    line.setAttribute('stroke-width', 4);
+    line.setAttribute('stroke-dasharray', '20 10');
+    svg.appendChild(line);
+
+    // Numbered badge at the start of the cut
+    const cx = corte.tipo === 'horizontal' ? corte.desde + fontSize : corte.pos;
+    const cy = corte.tipo === 'horizontal' ? corte.pos : corte.desde + fontSize;
+    const circle = document.createElementNS(SVG_NS, 'circle');
+    circle.setAttribute('cx', cx); circle.setAttribute('cy', cy);
+    circle.setAttribute('r', fontSize * 0.85);
+    circle.setAttribute('fill', '#d0021b');
+    circle.setAttribute('stroke', '#fff');
+    circle.setAttribute('stroke-width', 3);
+    svg.appendChild(circle);
+
+    const num = document.createElementNS(SVG_NS, 'text');
+    num.setAttribute('x', cx); num.setAttribute('y', cy);
+    num.setAttribute('text-anchor', 'middle');
+    num.setAttribute('dominant-baseline', 'middle');
+    num.setAttribute('font-size', fontSize);
+    num.setAttribute('font-weight', 'bold');
+    num.setAttribute('fill', '#fff');
+    num.textContent = corte.n;
+    svg.appendChild(num);
+  }
 }
 
 function etiquetaPieza(c) {
@@ -164,9 +211,9 @@ function dibujarVeta(svg, placa) {
       line.setAttribute('x1', pos); line.setAttribute('y1', 0);
       line.setAttribute('x2', pos); line.setAttribute('y2', long);
     }
-    line.setAttribute('stroke', '#c9a96a');
-    line.setAttribute('stroke-width', 1);
-    line.setAttribute('opacity', '0.45');
+    line.setAttribute('stroke', '#a07432');
+    line.setAttribute('stroke-width', 3);
+    line.setAttribute('opacity', '0.7');
     svg.appendChild(line);
   }
 
@@ -218,6 +265,11 @@ function dibujarVeta(svg, placa) {
 }
 
 function listaPiezas(placa) {
+  const wrap = document.createElement('div');
+  wrap.className = 'detalle-col';
+  const titulo = document.createElement('h4');
+  titulo.textContent = 'Piezas';
+  wrap.appendChild(titulo);
   const ol = document.createElement('ol');
   ol.className = 'lista-piezas';
   for (const c of placa.colocaciones) {
@@ -225,7 +277,35 @@ function listaPiezas(placa) {
     li.textContent = `${c.nombre} — ${c.ancho}×${c.alto} mm @ (${c.x}, ${c.y})${c.rotada ? ' [rotada]' : ''}`;
     ol.appendChild(li);
   }
-  return ol;
+  wrap.appendChild(ol);
+  return wrap;
+}
+
+function listaCortes(cortes) {
+  const wrap = document.createElement('div');
+  wrap.className = 'detalle-col';
+  const titulo = document.createElement('h4');
+  titulo.textContent = 'Plan de cortes (en orden)';
+  wrap.appendChild(titulo);
+  if (cortes.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'Sin cortes (una sola pieza ocupa la placa).';
+    wrap.appendChild(p);
+    return wrap;
+  }
+  const ol = document.createElement('ol');
+  ol.className = 'lista-cortes';
+  for (const c of cortes) {
+    const li = document.createElement('li');
+    if (c.tipo === 'horizontal') {
+      li.textContent = `Corte horizontal a y = ${Math.round(c.pos)} mm (largo ${Math.round(c.largo)} mm)`;
+    } else {
+      li.textContent = `Corte vertical a x = ${Math.round(c.pos)} mm (largo ${Math.round(c.largo)} mm)`;
+    }
+    ol.appendChild(li);
+  }
+  wrap.appendChild(ol);
+  return wrap;
 }
 
 function colorPara(nombre) {

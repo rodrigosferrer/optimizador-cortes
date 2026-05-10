@@ -41,7 +41,7 @@ export function nuevaPieza() {
     ancho: 600,
     alto: 400,
     cantidad: 1,
-    rotable: true,
+    vetaDireccion: 'libre', // 'libre' | 'ancho' | 'alto'
   };
 }
 
