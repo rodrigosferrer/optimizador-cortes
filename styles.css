@@ -470,6 +470,71 @@ table input[type=number] { width: 70px; }
   font-weight: 600;
 }
 .lista-flag { color: var(--accent); font-weight: 600; }
+
+/* === Mobile / Tablet === */
+@media (max-width: 900px) {
+  html { font-size: 14px; }
+  main {
+    display: block !important;
+    padding: var(--space-3);
+    grid-template-columns: none !important;
+    min-height: 0;
+  }
+  .splitter { display: none; }
+  .config-panel, .resultado-panel {
+    margin-bottom: var(--space-3);
+    padding: var(--space-4);
+    overflow: visible;
+  }
+  header {
+    padding: var(--space-2) var(--space-3);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  header h1 { font-size: 1rem; }
+  .acciones { gap: 6px; }
+  button { font-size: 0.85rem; padding: 6px 10px; }
+  .grupo-card { padding: var(--space-2); }
+  .grupo-header { flex-wrap: wrap; }
+  /* Allow table to scroll horizontally if it doesn't fit */
+  .tabla-grupo { display: block; overflow-x: auto; }
+  table input[type=number] { width: 64px; }
+  table input[type=text] { min-width: 90px; max-width: 130px; }
+  .placa-detalle { grid-template-columns: 1fr; }
+  .lista-piezas { columns: 1; }
+  .resumen { gap: var(--space-3); padding: var(--space-2) var(--space-3); }
+}
+
+@media (max-width: 600px) {
+  #config-placas .placa-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+  }
+  #config-placas .placa-row input[type=number] { width: 100%; }
+  #config-placas .placa-row > strong { margin-bottom: var(--space-1); }
+  #config-placas .placa-row .placa-m2 { text-align: left; }
+  .config-globals {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .config-globals label { width: 100%; }
+  .config-globals input[type=number],
+  .config-globals select { width: 100%; }
+  /* Stack header actions and h1 */
+  header { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+  header h1 { text-align: center; }
+  .acciones { justify-content: center; flex-wrap: wrap; }
+  /* Larger touch targets on phones */
+  button { min-height: 36px; padding: 8px 12px; }
+  table input, table select { padding: 6px 8px; min-height: 32px; }
+  .drag-handle { width: 24px; padding: 8px 4px !important; }
+  .drag-handle .ico { width: 16px; height: 16px; }
+  /* Make project name input tap-friendly */
+  .proyecto-nombre input { padding: 10px 12px; font-size: 1rem; }
+  /* Total banner stacks nicely */
+  .total-global { flex-direction: column; align-items: stretch; gap: var(--space-1); text-align: center; }
+}
 @media (max-width: 800px) {
   .placa-detalle { grid-template-columns: 1fr; }
   .lista-piezas { columns: 1; }
