@@ -64,6 +64,24 @@
       assertEq(r.placas[0].colocaciones.length, 2);
     });
 
+    test('kerf 3mm forces extra plate when pieces tight', () => {
+      const r = optimizar({
+        piezas: [{ id: 'a', nombre: 'A', ancho: 50, alto: 100, cantidad: 2, rotable: false }],
+        placas: [{ ancho: 100, alto: 100, cantidad: 5 }],
+        config: { kerf: 3, margenPlaca: 0 },
+      });
+      assertEq(r.metricas.placasUsadas, 2);
+    });
+
+    test('kerf 0 packs both pieces in one plate', () => {
+      const r = optimizar({
+        piezas: [{ id: 'a', nombre: 'A', ancho: 50, alto: 100, cantidad: 2, rotable: false }],
+        placas: [{ ancho: 100, alto: 100, cantidad: 5 }],
+        config: { kerf: 0, margenPlaca: 0 },
+      });
+      assertEq(r.metricas.placasUsadas, 1);
+    });
+
     render();
   </script>
 </body>
