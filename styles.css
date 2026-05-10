@@ -325,6 +325,26 @@ label { display: inline-flex; align-items: center; gap: var(--space-1); font-siz
 .grupo-acciones { margin-top: var(--space-2); }
 .tabla-grupo { margin: 0; }
 
+.grupo-card.drop-target {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--muted-2);
+  width: 18px;
+  padding: 4px 2px !important;
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+}
+.drag-handle:hover { color: var(--fg); }
+.drag-handle:active { cursor: grabbing; }
+.drag-handle .ico { width: 14px; height: 14px; }
+tr.dragging { opacity: 0.4; }
+
 /* === Tables === */
 table { border-collapse: separate; border-spacing: 0; width: 100%; margin: var(--space-3) 0; font-size: 0.875rem; }
 thead th {

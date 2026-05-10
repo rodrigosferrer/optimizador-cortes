@@ -2,6 +2,7 @@ import { nuevaPieza, nuevoGrupo, repararGrupos } from './state.js';
 import { icon } from './icons.js';
 
 let _proyecto, _onChange;
+let _dragPiezaId = null;
 
 export function montar(proyecto, onChange) {
   _proyecto = proyecto;
@@ -38,6 +39,7 @@ function renderGrupo(grupo) {
 
   const card = document.createElement('div');
   card.className = 'grupo-card';
+  card.dataset.grupoId = grupo.id;
   card.innerHTML = `
     <div class="grupo-header">
       <input type="text" class="grupo-nombre" value="${escapeAttr(grupo.nombre)}" placeholder="Nombre del mueble">
@@ -47,7 +49,7 @@ function renderGrupo(grupo) {
     <table class="tabla-grupo">
       <thead>
         <tr>
-          <th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th></th>
+          <th></th><th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th></th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -56,6 +58,29 @@ function renderGrupo(grupo) {
       <button class="btn-add-pieza">${icon('plus')} Pieza</button>
     </div>
   `;
+
+  // Drop target: anything dropped on the card moves the piece into this group.
+  card.addEventListener('dragover', (e) => {
+    if (!_dragPiezaId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    card.classList.add('drop-target');
+  });
+  card.addEventListener('dragleave', (e) => {
+    // Only clear if we actually left the card (not just moved over a child)
+    if (!card.contains(e.relatedTarget)) card.classList.remove('drop-target');
+  });
+  card.addEventListener('drop', (e) => {
+    e.preventDefault();
+    card.classList.remove('drop-target');
+    const piezaId = e.dataTransfer.getData('text/plain') || _dragPiezaId;
+    const pieza = _proyecto.piezas.find(x => x.id === piezaId);
+    if (pieza && pieza.grupoId !== grupo.id) {
+      pieza.grupoId = grupo.id;
+      render();
+      _onChange();
+    }
+  });
 
   const inputNombre = card.querySelector('.grupo-nombre');
   inputNombre.oninput = () => { grupo.nombre = inputNombre.value; _onChange(); };
@@ -87,7 +112,9 @@ function renderGrupo(grupo) {
 function renderFila(p) {
   const veta = p.vetaDireccion || 'libre';
   const tr = document.createElement('tr');
+  tr.dataset.piezaId = p.id;
   tr.innerHTML = `
+    <td class="drag-handle" draggable="true" title="Arrastrá para mover a otro mueble">${icon('grip')}</td>
     <td><input type="text" class="nombre" value="${escapeAttr(p.nombre)}"></td>
     <td><input type="number" min="1" value="${p.ancho}"></td>
     <td><input type="number" min="1" value="${p.alto}"></td>
@@ -113,6 +140,21 @@ function renderFila(p) {
     render();
     _onChange();
   };
+
+  // Drag source
+  const handle = tr.querySelector('.drag-handle');
+  handle.addEventListener('dragstart', (e) => {
+    _dragPiezaId = p.id;
+    e.dataTransfer.setData('text/plain', p.id);
+    e.dataTransfer.effectAllowed = 'move';
+    tr.classList.add('dragging');
+  });
+  handle.addEventListener('dragend', () => {
+    _dragPiezaId = null;
+    tr.classList.remove('dragging');
+    document.querySelectorAll('.grupo-card.drop-target').forEach(c => c.classList.remove('drop-target'));
+  });
+
   return tr;
 }
 
