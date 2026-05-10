@@ -4,7 +4,71 @@
   --border: #ccc;
   --accent: #2c5aa0;
   --warn: #c44;
+  --panel: #fff;
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+
+header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 20px; background: var(--accent); color: #fff;
+}
+header h1 { margin: 0; font-size: 1.3em; }
+
+main {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+
+.config-panel, .resultado-panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  padding: 16px; overflow: auto;
+}
+
+h2 { margin-top: 0; font-size: 1.05em; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+
+.acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.acciones-resultado { margin-bottom: 12px; }
+
+button {
+  padding: 6px 12px; border: 1px solid var(--border); background: #f0f0f0; border-radius: 4px; cursor: pointer;
+}
+button:hover { background: #e6e6e6; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary:hover { background: #234a85; }
+
+input[type=number], input[type=text] {
+  width: 80px; padding: 4px; border: 1px solid var(--border); border-radius: 3px;
+}
+input[type=text].nombre { width: 130px; }
+
+label { display: inline-flex; align-items: center; gap: 4px; margin-right: 12px; }
+
+#config-placas .placa-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.config-globals { margin: 12px 0; }
+
+table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+th, td { padding: 4px 6px; border: 1px solid var(--border); text-align: left; }
+th { background: #f0f0f0; font-size: 0.9em; }
+
+.resumen { display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; padding: 8px; background: #f5f5f5; border-radius: 4px; }
+.resumen .warn { color: var(--warn); }
+
+.errores { background: #fee; border: 1px solid var(--warn); padding: 8px; border-radius: 4px; margin-bottom: 12px; }
+
+.placa-wrap { margin-bottom: 24px; }
+.placa-svg { display: block; max-width: 100%; height: auto; border: 1px solid #888; }
+.lista-piezas { font-size: 0.9em; columns: 2; }
+
+@media print {
+  header, .config-panel, .acciones-resultado, .errores, button { display: none !important; }
+  main { display: block; padding: 0; }
+  .resultado-panel { border: none; padding: 0; }
+  .placa-wrap { page-break-after: always; }
+  .placa-wrap:last-child { page-break-after: auto; }
+  .placa-svg { max-width: 100%; }
+  body { background: #fff; }
+}
