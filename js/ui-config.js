@@ -32,11 +32,20 @@ function renderPlacas(proyecto, onChange) {
           <option value="v" ${!placa.vetaHorizontal ? 'selected' : ''}>↕ vertical</option>
         </select>
       </label>
+      <span class="placa-m2"></span>
       <button class="icon-only" data-action="rm" title="Quitar">${icon('trash')}</button>
     `;
+    const m2Span = row.querySelector('.placa-m2');
+    const actualizarM2 = () => {
+      const m2 = (placa.ancho * placa.alto) / 1e6;
+      const total = m2 * (placa.cantidad || 0);
+      m2Span.textContent = `${m2.toFixed(2)} m² · ${total.toFixed(2)} m² total`;
+    };
+    actualizarM2();
     row.querySelectorAll('input').forEach(input => {
       input.oninput = () => {
         placa[input.dataset.k] = Number(input.value) || 0;
+        actualizarM2();
         onChange();
       };
     });

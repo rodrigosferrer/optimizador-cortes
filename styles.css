@@ -279,6 +279,13 @@ label { display: inline-flex; align-items: center; gap: var(--space-1); font-siz
   font-size: 0.85rem;
 }
 #config-placas .placa-row strong { color: var(--fg); margin-right: var(--space-1); }
+.placa-m2 {
+  flex: 1 1 auto;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
 .config-globals {
   display: flex; gap: var(--space-4); flex-wrap: wrap;
   padding: var(--space-3); margin: var(--space-3) 0 var(--space-2);
