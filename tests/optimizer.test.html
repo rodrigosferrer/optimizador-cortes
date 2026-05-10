@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Optimizer Tests</title>
+  <style>body{font-family:system-ui;margin:20px;max-width:900px}</style>
+</head>
+<body>
+  <h1>Optimizer Tests</h1>
+  <div id="results"></div>
+  <script type="module">
+    import { optimizar } from '../js/optimizer.js';
+    import { test, assert, assertEq, assertClose, render } from './harness.js';
+
+    test('empty input returns empty result', () => {
+      const r = optimizar({ piezas: [], placas: [], config: { kerf: 3, margenPlaca: 0 } });
+      assertEq(r.placas, []);
+      assertEq(r.metricas.placasUsadas, 0);
+      assertEq(r.errores, []);
+    });
+
+    render();
+  </script>
+</body>
+</html>
