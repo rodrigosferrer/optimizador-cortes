@@ -166,10 +166,28 @@ function esMejor(run, mejor) {
 function correr(plan, placas, kerf, margen, estrategiaPlaca = 'chica-primero') {
   const stock = [...placas.map(p => ({ ...p }))];
   const placasAbiertas = [];
+
+  // 'agotar-stock': pre-open one plate per stock type with cantidad > 0,
+  // smallest first. This lets small pieces find a small plate to live in
+  // before getting absorbed by a larger open plate. Empty plates are
+  // filtered out at the end.
+  if (estrategiaPlaca === 'agotar-stock') {
+    const tipos = [...stock].sort((a, b) => (a.ancho * a.alto) - (b.ancho * b.alto));
+    for (const tipo of tipos) {
+      if (tipo.cantidad > 0) {
+        tipo.cantidad--;
+        placasAbiertas.push(abrirPlaca(tipo, margen));
+      }
+    }
+  }
+
   for (const item of plan) {
     colocarPieza(item, placasAbiertas, stock, kerf, margen, estrategiaPlaca);
   }
-  return { placasAbiertas, stock };
+
+  // Drop any plate that ended up empty (pre-opened but unused).
+  const usadas = placasAbiertas.filter(p => p.colocaciones.length > 0);
+  return { placasAbiertas: usadas, stock };
 }
 
 function colocarPieza(item, placasAbiertas, stock, kerf, margen, estrategiaPlaca) {
