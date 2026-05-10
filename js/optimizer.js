@@ -67,6 +67,7 @@ export function optimizar({ piezas, placas, config }) {
   const errores = noColocables.map(p => `La pieza '${p.nombre}' no entra en ninguna placa stock`);
   const metricas = calcularMetricas(mejorRun.placasAbiertas, colocables, mejorRun.stock);
   metricas.estrategia = mejorEtiqueta;
+  metricas.cotaTeorica = cotaTeoricaPlacas(colocables, placas);
   return {
     placas: mejorRun.placasAbiertas.map(formatearPlaca),
     metricas,
@@ -302,6 +303,15 @@ function expandirPiezas(piezas) {
 function formatearPlaca(p) {
   const sobrantes = p.libres.filter(l => l.ancho >= 5 && l.alto >= 5);
   return { ancho: p.ancho, alto: p.alto, colocaciones: p.colocaciones, sobrantes };
+}
+
+// Lower bound on plate count: total piece area / largest available plate area.
+// Optimal layouts can't beat this no matter the algorithm.
+function cotaTeoricaPlacas(piezasColocables, placas) {
+  if (piezasColocables.length === 0 || placas.length === 0) return 0;
+  const areaPiezas = piezasColocables.reduce((s, p) => s + p.ancho * p.alto, 0);
+  const placaMayor = placas.reduce((mx, p) => Math.max(mx, p.ancho * p.alto), 0);
+  return Math.ceil(areaPiezas / placaMayor);
 }
 
 function calcularMetricas(placas, piezasColocables, stock) {

@@ -16,10 +16,16 @@ export function render(container, resultado) {
   }
 
   const m = resultado.metricas;
+  const cota = m.cotaTeorica || 0;
+  const enOptimo = cota > 0 && m.placasUsadas === cota;
   const resumen = document.createElement('div');
   resumen.className = 'resumen';
   resumen.innerHTML = `
-    <div>Placas usadas: <strong>${m.placasUsadas}</strong></div>
+    <div>Placas usadas: <strong>${m.placasUsadas}</strong>${
+      cota > 0
+        ? ` <span class="cota" title="Mínimo teórico (cota por área). Con cortes guillotine puede no ser alcanzable.">(mínimo teórico: ${cota}${enOptimo ? ' ✓' : ''})</span>`
+        : ''
+    }</div>
     <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong></div>
     <div>Desperdicio: <strong>${(m.desperdicio * 100).toFixed(1)}%</strong></div>
     ${m.placasFaltantes > 0 ? `<div class="warn">⚠ Faltan ${m.placasFaltantes} placa(s) en stock</div>` : ''}
