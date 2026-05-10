@@ -48,9 +48,12 @@ function buscarOptimo(rect, piezas, kerf, limit) {
 
   let mejor = null;
 
-  // Horizontal cut candidates
+  // Horizontal cut candidates: bottom edges of pieces above the cut, OR top
+  // edges of pieces below the cut shifted back by the kerf so the kerf zone
+  // sits between the two pieces. Using p.y directly is WRONG because it puts
+  // the piece flush at p.y in the kerf zone (excluded from both sub-rects).
   const candY = new Set();
-  for (const p of dentro) { candY.add(p.y); candY.add(p.y2); }
+  for (const p of dentro) { candY.add(p.y2); candY.add(p.y - kerf); }
   const ys = [...candY].filter(y => y > rect.y + TOL && y < rect.y2 - TOL).sort((a, b) => a - b);
   for (const y of ys) {
     if (dentro.some(p => p.y < y - TOL && p.y2 > y + TOL)) continue;
@@ -64,9 +67,9 @@ function buscarOptimo(rect, piezas, kerf, limit) {
     if (candidato !== null && (!mejor || candidato.length < mejor.length)) mejor = candidato;
   }
 
-  // Vertical cut candidates
+  // Vertical cut candidates: same logic as horizontal, with kerf shift.
   const candX = new Set();
-  for (const p of dentro) { candX.add(p.x); candX.add(p.x2); }
+  for (const p of dentro) { candX.add(p.x2); candX.add(p.x - kerf); }
   const xs = [...candX].filter(x => x > rect.x + TOL && x < rect.x2 - TOL).sort((a, b) => a - b);
   for (const x of xs) {
     if (dentro.some(p => p.x < x - TOL && p.x2 > x + TOL)) continue;
