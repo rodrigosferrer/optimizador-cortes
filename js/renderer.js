@@ -56,7 +56,7 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     wrap.appendChild(svg);
     const detalle = document.createElement('div');
     detalle.className = 'placa-detalle';
-    detalle.appendChild(listaPiezas(placa));
+    detalle.appendChild(listaPiezas(placa, proyecto, nombrePorPiezaId));
     detalle.appendChild(listaCortes(cortes));
     wrap.appendChild(detalle);
     container.appendChild(wrap);
@@ -306,20 +306,50 @@ function dibujarVeta(svg, placa) {
   }
 }
 
-function listaPiezas(placa) {
+function listaPiezas(placa, proyecto, nombrePorPiezaId) {
   const wrap = document.createElement('div');
   wrap.className = 'detalle-col';
   const titulo = document.createElement('h4');
   titulo.textContent = 'Piezas';
   wrap.appendChild(titulo);
-  const ol = document.createElement('ol');
-  ol.className = 'lista-piezas';
-  for (const c of placa.colocaciones) {
-    const li = document.createElement('li');
-    li.textContent = `${c.nombre} — ${c.ancho}×${c.alto} mm @ (${c.x}, ${c.y})${c.rotada ? ' [rotada]' : ''}`;
-    ol.appendChild(li);
+
+  // Build piezaId -> grupoNombre map. If no proyecto, render flat.
+  const grupoPorPiezaId = new Map();
+  if (proyecto && proyecto.grupos) {
+    const nombrePorGrupo = new Map(proyecto.grupos.map(g => [g.id, g.nombre]));
+    for (const p of proyecto.piezas) {
+      grupoPorPiezaId.set(p.id, nombrePorGrupo.get(p.grupoId) || 'Sin grupo');
+    }
   }
-  wrap.appendChild(ol);
+
+  // Group placa.colocaciones by mueble, preserving placement order.
+  // The original index in placa.colocaciones is the badge number.
+  const porGrupo = new Map();
+  placa.colocaciones.forEach((c, idx) => {
+    const grupo = grupoPorPiezaId.get(c.piezaId) || 'Sin grupo';
+    if (!porGrupo.has(grupo)) porGrupo.set(grupo, []);
+    porGrupo.get(grupo).push({ c, idx: idx + 1 });
+  });
+
+  if (porGrupo.size === 0) {
+    wrap.appendChild(document.createElement('p'));
+    return wrap;
+  }
+
+  for (const [grupoNombre, items] of porGrupo) {
+    const h5 = document.createElement('h5');
+    h5.className = 'lista-grupo-titulo';
+    h5.textContent = grupoNombre;
+    wrap.appendChild(h5);
+    const ul = document.createElement('ul');
+    ul.className = 'lista-piezas lista-piezas-grupo';
+    for (const { c, idx } of items) {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="lista-num">${idx}.</span> ${escapeHtml(c.nombre)} — ${c.ancho}×${c.alto} mm${c.rotada ? ' <span class="lista-flag">↻</span>' : ''}`;
+      ul.appendChild(li);
+    }
+    wrap.appendChild(ul);
+  }
   return wrap;
 }
 

@@ -448,12 +448,28 @@ table input[type=number] { width: 70px; }
 }
 .placa-detalle h4 { margin-bottom: var(--space-2); }
 .lista-piezas, .lista-cortes {
-  font-size: 0.8125rem; margin: 0; padding-left: 22px;
+  font-size: 0.8125rem; margin: 0 0 var(--space-3) 0; padding-left: 22px;
   color: var(--fg);
   font-variant-numeric: tabular-nums;
 }
-.lista-piezas { columns: 2; }
+.lista-piezas { list-style: none; padding-left: 0; }
 .lista-piezas li, .lista-cortes li { margin-bottom: 2px; }
+.lista-grupo-titulo {
+  margin: var(--space-3) 0 var(--space-1) 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-hover);
+}
+.lista-grupo-titulo:first-of-type { margin-top: 0; }
+.lista-num {
+  display: inline-block;
+  min-width: 22px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.lista-flag { color: var(--accent); font-weight: 600; }
 @media (max-width: 800px) {
   .placa-detalle { grid-template-columns: 1fr; }
   .lista-piezas { columns: 1; }

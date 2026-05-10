@@ -28,6 +28,7 @@ const SA_DEFAULTS = {
 export function optimizar({ piezas, placas, config }) {
   const kerf = config.kerf || 0;
   const margen = config.margenPlaca || 0;
+  const estrategiaPlaca = config.estrategiaPlaca || 'chica-primero';
   const sa = { ...SA_DEFAULTS, ...(config.sa || {}) };
 
   const expandidas = expandirPiezas(piezas);
@@ -43,7 +44,7 @@ export function optimizar({ piezas, placas, config }) {
       for (const sRule of SPLIT_RULES) {
         const ordenadas = [...colocables].sort(estrategia.cmp);
         const plan = ordenadas.map(p => ({ pieza: p, pRule, sRule }));
-        const run = correr(plan, placas, kerf, margen);
+        const run = correr(plan, placas, kerf, margen, estrategiaPlaca);
         if (esMejor(run, mejorRun)) {
           mejorPlan = plan;
           mejorRun = run;
@@ -55,7 +56,7 @@ export function optimizar({ piezas, placas, config }) {
 
   // Phase 2: SA over the joint (order, pRule, sRule) space.
   if (sa.iteraciones > 0 && colocables.length >= 2) {
-    const resultado = recocerSimulado(mejorPlan, mejorRun, placas, kerf, margen, sa);
+    const resultado = recocerSimulado(mejorPlan, mejorRun, placas, kerf, margen, sa, estrategiaPlaca);
     if (esMejor(resultado.run, mejorRun)) {
       mejorRun = resultado.run;
       mejorEtiqueta = `sa (mejoró desde ${mejorEtiqueta} en iter ${resultado.iterMejora})`;
@@ -75,7 +76,7 @@ export function optimizar({ piezas, placas, config }) {
   };
 }
 
-function recocerSimulado(planInicial, runInicial, placas, kerf, margen, sa) {
+function recocerSimulado(planInicial, runInicial, placas, kerf, margen, sa, estrategiaPlaca) {
   const rng = mulberry32(sa.semilla);
   const plan = planInicial.map(x => ({ ...x }));
   let mejorRun = runInicial;
@@ -116,7 +117,7 @@ function recocerSimulado(planInicial, runInicial, placas, kerf, margen, sa) {
       undo = () => { plan[a].sRule = prev; };
     }
 
-    const run = correr(plan, placas, kerf, margen);
+    const run = correr(plan, placas, kerf, margen, estrategiaPlaca);
     const c = costo(run);
     const delta = c - actualCosto;
 
@@ -162,20 +163,20 @@ function esMejor(run, mejor) {
   return costo(run) < costo(mejor);
 }
 
-function correr(plan, placas, kerf, margen) {
+function correr(plan, placas, kerf, margen, estrategiaPlaca = 'chica-primero') {
   const stock = [...placas.map(p => ({ ...p }))];
   const placasAbiertas = [];
   for (const item of plan) {
-    colocarPieza(item, placasAbiertas, stock, kerf, margen);
+    colocarPieza(item, placasAbiertas, stock, kerf, margen, estrategiaPlaca);
   }
   return { placasAbiertas, stock };
 }
 
-function colocarPieza(item, placasAbiertas, stock, kerf, margen) {
+function colocarPieza(item, placasAbiertas, stock, kerf, margen, estrategiaPlaca) {
   for (const placa of placasAbiertas) {
     if (intentarColocar(item, placa, kerf)) return true;
   }
-  const tipo = elegirTipoStock(stock, item.pieza, margen);
+  const tipo = elegirTipoStock(stock, item.pieza, margen, estrategiaPlaca);
   if (!tipo) return false;
   const nueva = abrirPlaca(tipo, margen);
   placasAbiertas.push(nueva);
@@ -265,29 +266,35 @@ function abrirPlaca(tipo, margen) {
   };
 }
 
-function elegirTipoStock(stock, pieza, margen) {
+function elegirTipoStock(stock, pieza, margen, estrategiaPlaca = 'chica-primero') {
   if (stock.length === 0) return null;
 
-  // 1. Honor user's order: first type with stock AND room for the piece.
-  for (const s of stock) {
-    if (s.cantidad > 0 && piezaCabeEnTipo(pieza, s, margen)) {
-      s.cantidad--;
-      return s;
+  const compatibleConStock = stock.filter(s => piezaCabeEnTipo(pieza, s, margen) && s.cantidad > 0);
+  let elegido = null;
+  if (compatibleConStock.length > 0) {
+    if (estrategiaPlaca === 'orden-manual') {
+      // First in user's UI order (preserve original index).
+      elegido = compatibleConStock[0];
+    } else if (estrategiaPlaca === 'grande-primero') {
+      compatibleConStock.sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
+      elegido = compatibleConStock[0];
+    } else {
+      // 'chica-primero' (default)
+      compatibleConStock.sort((a, b) => (a.ancho * a.alto) - (b.ancho * b.alto));
+      elegido = compatibleConStock[0];
     }
+    elegido.cantidad--;
+    return elegido;
   }
 
-  // 2. Nothing in user's order works for this piece. Pick the largest type
-  //    that physically accommodates it. Prefer one with stock; otherwise
-  //    increment faltantes on it (caller reports missing plates).
+  // Stock exhausted. Fall back to the largest compatible type and report
+  // it as missing (caller surfaces placasFaltantes in the metrics).
   const compatibles = stock
     .filter(s => piezaCabeEnTipo(pieza, s, margen))
     .sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
   if (compatibles.length === 0) return null;
 
-  const conStock = compatibles.find(s => s.cantidad > 0);
-  if (conStock) { conStock.cantidad--; return conStock; }
-
-  const elegido = compatibles[0];
+  elegido = compatibles[0];
   elegido.faltantes = (elegido.faltantes || 0) + 1;
   return elegido;
 }

@@ -3,12 +3,20 @@ import { icon } from './icons.js';
 
 export function montar(proyecto, onChange) {
   const cfg = proyecto.config;
+  if (!cfg.estrategiaPlaca) cfg.estrategiaPlaca = 'chica-primero';
+
   const kerfInput = document.getElementById('cfg-kerf');
   const margenInput = document.getElementById('cfg-margen');
+  const estrategiaSel = document.getElementById('cfg-estrategia');
   kerfInput.value = cfg.kerf;
   margenInput.value = cfg.margenPlaca;
+  if (estrategiaSel) estrategiaSel.value = cfg.estrategiaPlaca;
+
   kerfInput.oninput = () => { cfg.kerf = Number(kerfInput.value) || 0; onChange(); };
   margenInput.oninput = () => { cfg.margenPlaca = Number(margenInput.value) || 0; onChange(); };
+  if (estrategiaSel) {
+    estrategiaSel.onchange = () => { cfg.estrategiaPlaca = estrategiaSel.value; onChange(); };
+  }
 
   renderPlacas(proyecto, onChange);
 }
