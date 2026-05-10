@@ -13,9 +13,10 @@ function onChange() {
 }
 
 function bootstrap() {
+  // Buttons must be created BEFORE uiPiezas.montar(), which wires up #btn-agregar-pieza.
+  montarBotones();
   uiConfig.montar(proyecto, onChange);
   uiPiezas.montar(proyecto, onChange);
-  montarBotones();
   inicializarSplitter();
 }
 
