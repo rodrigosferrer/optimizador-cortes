@@ -72,16 +72,13 @@ function dibujarPlaca(placa) {
     r.setAttribute('stroke-dasharray', '12 8');
     svg.appendChild(r);
 
-    const t = document.createElementNS(SVG_NS, 'text');
-    t.setAttribute('x', s.x + s.ancho / 2);
-    t.setAttribute('y', s.y + s.alto / 2);
-    t.setAttribute('text-anchor', 'middle');
-    t.setAttribute('dominant-baseline', 'middle');
-    t.setAttribute('font-size', Math.max(30, Math.min(s.ancho, s.alto) / 10));
-    t.setAttribute('fill', '#666');
-    t.setAttribute('font-style', 'italic');
-    t.textContent = `sobra ${Math.round(s.ancho)}×${Math.round(s.alto)}`;
-    svg.appendChild(t);
+    svg.appendChild(etiquetaRect({
+      x: s.x, y: s.y, ancho: s.ancho, alto: s.alto,
+      linea1: 'sobra',
+      linea2: `${Math.round(s.ancho)}×${Math.round(s.alto)}`,
+      color: '#666',
+      italic: true,
+    }));
   }
 
   for (const c of placa.colocaciones) {
@@ -102,23 +99,30 @@ function dibujarPlaca(placa) {
 }
 
 function etiquetaPieza(c) {
-  // Two lines: name + dimensions. Auto-fit font size; rotate 90° if piece is much taller than wide.
-  const linea1 = c.nombre;
-  const linea2 = `${Math.round(c.ancho)}×${Math.round(c.alto)}${c.rotada ? ' ↻' : ''}`;
+  return etiquetaRect({
+    x: c.x, y: c.y, ancho: c.ancho, alto: c.alto,
+    linea1: c.nombre,
+    linea2: `${Math.round(c.ancho)}×${Math.round(c.alto)}${c.rotada ? ' ↻' : ''}`,
+    color: '#000',
+    italic: false,
+  });
+}
 
-  const tall = c.alto > c.ancho * 1.4;
-  const longSide = tall ? c.alto : c.ancho;
-  const shortSide = tall ? c.ancho : c.alto;
+// Auto-fit two-line label inside a rectangle. Rotates 90° if rect is much taller than wide.
+function etiquetaRect({ x, y, ancho, alto, linea1, linea2, color, italic }) {
+  const tall = alto > ancho * 1.4;
+  const longSide = tall ? alto : ancho;
+  const shortSide = tall ? ancho : alto;
   const maxChars = Math.max(linea1.length, linea2.length);
 
-  // Width: text width ≈ chars * fontSize * 0.55. Solve for fontSize.
-  // Height: 2 lines + small gap ≈ fontSize * 2.4.
+  // Width budget: maxChars * fontSize * 0.55 ≈ longSide * 0.92.
+  // Height budget: 2 lines + gap ≈ fontSize * 2.4 ≤ shortSide * 0.85.
   const fontByLong = (longSide * 0.92) / Math.max(maxChars * 0.55, 1);
   const fontByShort = (shortSide * 0.85) / 2.4;
-  const fontSize = Math.max(14, Math.min(fontByLong, fontByShort, 80));
+  const fontSize = Math.max(10, Math.min(fontByLong, fontByShort, 80));
 
-  const cx = c.x + c.ancho / 2;
-  const cy = c.y + c.alto / 2;
+  const cx = x + ancho / 2;
+  const cy = y + alto / 2;
 
   const text = document.createElementNS(SVG_NS, 'text');
   text.setAttribute('x', cx);
@@ -126,10 +130,9 @@ function etiquetaPieza(c) {
   text.setAttribute('text-anchor', 'middle');
   text.setAttribute('dominant-baseline', 'middle');
   text.setAttribute('font-size', fontSize);
-  text.setAttribute('fill', '#000');
-  if (tall) {
-    text.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
-  }
+  text.setAttribute('fill', color);
+  if (italic) text.setAttribute('font-style', 'italic');
+  if (tall) text.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
 
   const t1 = document.createElementNS(SVG_NS, 'tspan');
   t1.setAttribute('x', cx);
