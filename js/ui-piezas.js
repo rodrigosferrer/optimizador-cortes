@@ -1,4 +1,5 @@
 import { nuevaPieza } from './state.js';
+import { icon } from './icons.js';
 
 export function montar(proyecto, onChange) {
   render(proyecto, onChange);
@@ -31,7 +32,7 @@ function render(proyecto, onChange) {
           <option value="alto"  ${veta === 'alto'  ? 'selected' : ''}>↕ alto</option>
         </select>
       </td>
-      <td><button title="Quitar">✕</button></td>
+      <td><button class="icon-only" title="Quitar">${icon('trash')}</button></td>
     `;
     const inputs = tr.querySelectorAll('input');
     const sel = tr.querySelector('select');

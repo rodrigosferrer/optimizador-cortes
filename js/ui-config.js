@@ -1,4 +1,5 @@
 import { nuevaPlaca } from './state.js';
+import { icon } from './icons.js';
 
 export function montar(proyecto, onChange) {
   const cfg = proyecto.config;
@@ -31,7 +32,7 @@ function renderPlacas(proyecto, onChange) {
           <option value="v" ${!placa.vetaHorizontal ? 'selected' : ''}>↕ vertical</option>
         </select>
       </label>
-      <button data-action="rm" title="Quitar">✕</button>
+      <button class="icon-only" data-action="rm" title="Quitar">${icon('trash')}</button>
     `;
     row.querySelectorAll('input').forEach(input => {
       input.oninput = () => {
@@ -51,7 +52,7 @@ function renderPlacas(proyecto, onChange) {
   });
 
   const addBtn = document.createElement('button');
-  addBtn.textContent = '+ Otra placa stock';
+  addBtn.innerHTML = `${icon('plus')} Otra placa stock`;
   addBtn.onclick = () => {
     proyecto.placas.push(nuevaPlaca());
     renderPlacas(proyecto, onChange);

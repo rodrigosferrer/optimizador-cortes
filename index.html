@@ -9,12 +9,8 @@
 <body>
   <header>
     <h1>Optimizador de Cortes</h1>
-    <div class="acciones">
-      <button id="btn-nuevo">Nuevo</button>
-      <button id="btn-export">Exportar JSON</button>
-      <button id="btn-import">Importar JSON</button>
-      <input type="file" id="file-import" accept=".json" hidden>
-    </div>
+    <div class="acciones" id="acciones-header"></div>
+    <input type="file" id="file-import" accept=".json" hidden>
   </header>
 
   <main>
@@ -33,21 +29,14 @@
         </thead>
         <tbody></tbody>
       </table>
-      <div class="acciones">
-        <button id="btn-agregar-pieza">+ Pieza</button>
-        <button id="btn-importar-csv">Importar CSV</button>
-        <button id="btn-exportar-csv">Exportar CSV</button>
-        <input type="file" id="file-csv" accept=".csv,text/csv" hidden>
-      </div>
+      <div class="acciones" id="acciones-piezas"></div>
+      <input type="file" id="file-csv" accept=".csv,text/csv" hidden>
     </section>
 
     <div class="splitter" id="splitter" title="Arrastrá para redimensionar"></div>
 
     <section class="resultado-panel" id="resultado-panel">
-      <div class="acciones acciones-resultado">
-        <button id="btn-calcular" class="primary">▶ Calcular cortes</button>
-        <button id="btn-imprimir">🖨 Imprimir / PDF</button>
-      </div>
+      <div class="acciones acciones-resultado" id="acciones-resultado"></div>
       <div id="resultado"></div>
     </section>
   </main>

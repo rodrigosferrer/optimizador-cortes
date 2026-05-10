@@ -4,8 +4,11 @@ import { planCortes } from './cuts.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-export function render(container, resultado, kerf = 0) {
+export function render(container, resultado, kerf = 0, proyecto = null) {
   container.innerHTML = '';
+
+  // Print-only summary page (pieces table + project info), shown first when printing
+  if (proyecto) container.appendChild(printSummary(proyecto, resultado));
 
   if (resultado.errores.length > 0) {
     const box = document.createElement('div');
@@ -54,10 +57,20 @@ function dibujarPlaca(placa, cortes = []) {
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('class', 'placa-svg');
 
+  // Drop-shadow filter for pieces
+  const defs = document.createElementNS(SVG_NS, 'defs');
+  defs.innerHTML = `
+    <filter id="piezaShadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.18"/>
+    </filter>
+  `;
+  svg.appendChild(defs);
+
   const bg = document.createElementNS(SVG_NS, 'rect');
   bg.setAttribute('x', 0); bg.setAttribute('y', 0);
   bg.setAttribute('width', placa.ancho); bg.setAttribute('height', placa.alto);
-  bg.setAttribute('fill', '#f5e8c8'); bg.setAttribute('stroke', '#333'); bg.setAttribute('stroke-width', 4);
+  bg.setAttribute('rx', 8); bg.setAttribute('ry', 8);
+  bg.setAttribute('fill', '#f5e8c8'); bg.setAttribute('stroke', '#44403c'); bg.setAttribute('stroke-width', 3);
   svg.appendChild(bg);
 
   // Wood grain lines, drawn behind everything (sobrantes are translucent so grain shows through there)
@@ -90,8 +103,10 @@ function dibujarPlaca(placa, cortes = []) {
     const rect = document.createElementNS(SVG_NS, 'rect');
     rect.setAttribute('x', c.x); rect.setAttribute('y', c.y);
     rect.setAttribute('width', c.ancho); rect.setAttribute('height', c.alto);
+    rect.setAttribute('rx', 6); rect.setAttribute('ry', 6);
     rect.setAttribute('fill', colorPara(c.nombre));
-    rect.setAttribute('stroke', '#222'); rect.setAttribute('stroke-width', 2);
+    rect.setAttribute('stroke', '#1c1917'); rect.setAttribute('stroke-width', 1.5);
+    rect.setAttribute('filter', 'url(#piezaShadow)');
     g.appendChild(rect);
 
     g.appendChild(etiquetaPieza(c));
@@ -246,9 +261,13 @@ function dibujarVeta(svg, placa) {
   arrow.appendChild(txt);
   svg.appendChild(arrow);
 
-  // Marker definition (only need one per SVG)
-  if (!svg.querySelector('defs')) {
-    const defs = document.createElementNS(SVG_NS, 'defs');
+  // Marker definition for the grain arrow (added to existing <defs>)
+  let defs = svg.querySelector('defs');
+  if (!defs) {
+    defs = document.createElementNS(SVG_NS, 'defs');
+    svg.insertBefore(defs, svg.firstChild);
+  }
+  if (!defs.querySelector('#flecha-veta')) {
     const marker = document.createElementNS(SVG_NS, 'marker');
     marker.setAttribute('id', 'flecha-veta');
     marker.setAttribute('viewBox', '0 0 10 10');
@@ -260,7 +279,6 @@ function dibujarVeta(svg, placa) {
     path.setAttribute('fill', '#7a5a2a');
     marker.appendChild(path);
     defs.appendChild(marker);
-    svg.insertBefore(defs, svg.firstChild);
   }
 }
 
@@ -316,4 +334,35 @@ function colorPara(nombre) {
 
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function printSummary(proyecto, resultado) {
+  const wrap = document.createElement('section');
+  wrap.className = 'print-only print-summary';
+  const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const m = resultado.metricas;
+  const totalPiezas = proyecto.piezas.reduce((s, p) => s + (p.cantidad || 0), 0);
+  const filas = proyecto.piezas.map((p, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(p.nombre || '')}</td>
+      <td style="text-align:right">${p.ancho}</td>
+      <td style="text-align:right">${p.alto}</td>
+      <td style="text-align:right">${p.cantidad}</td>
+      <td>${p.vetaDireccion || 'libre'}</td>
+    </tr>
+  `).join('');
+  wrap.innerHTML = `
+    <h2>${escapeHtml(proyecto.nombre || 'Optimizador de Cortes')}</h2>
+    <div class="meta">${fecha} — ${totalPiezas} piezas, ${m.placasUsadas} placa(s), ${(m.aprovechamiento * 100).toFixed(1)}% de aprovechamiento</div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Nombre</th><th>Ancho (mm)</th><th>Alto (mm)</th><th>Cant.</th><th>Veta</th>
+        </tr>
+      </thead>
+      <tbody>${filas}</tbody>
+    </table>
+  `;
+  return wrap;
 }

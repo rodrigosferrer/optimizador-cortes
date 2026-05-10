@@ -4,6 +4,7 @@ import * as uiPiezas from './ui-piezas.js';
 import { parsearCSV, serializarCSV } from './csv.js';
 import { optimizar } from './optimizer.js';
 import { render as renderResultado } from './renderer.js';
+import { icon } from './icons.js';
 
 let proyecto = cargar();
 
@@ -14,6 +15,31 @@ function onChange() {
 function bootstrap() {
   uiConfig.montar(proyecto, onChange);
   uiPiezas.montar(proyecto, onChange);
+  montarBotones();
+  inicializarSplitter();
+}
+
+function montarBotones() {
+  // Header actions
+  const header = document.getElementById('acciones-header');
+  header.innerHTML = `
+    <button id="btn-nuevo">${icon('filePlus')} Nuevo</button>
+    <button id="btn-export">${icon('download')} Exportar JSON</button>
+    <button id="btn-import">${icon('upload')} Importar JSON</button>
+  `;
+  // Pieces actions
+  const piezas = document.getElementById('acciones-piezas');
+  piezas.innerHTML = `
+    <button id="btn-agregar-pieza">${icon('plus')} Pieza</button>
+    <button id="btn-importar-csv">${icon('upload')} Importar CSV</button>
+    <button id="btn-exportar-csv">${icon('download')} Exportar CSV</button>
+  `;
+  // Result actions
+  const resultado = document.getElementById('acciones-resultado');
+  resultado.innerHTML = `
+    <button id="btn-calcular" class="primary">${icon('play')} Calcular cortes</button>
+    <button id="btn-imprimir">${icon('printer')} Imprimir / PDF</button>
+  `;
 
   document.getElementById('btn-nuevo').onclick = () => {
     if (!confirm('¿Empezar un proyecto nuevo? Se descartará el actual.')) return;
@@ -27,9 +53,7 @@ function bootstrap() {
     descargar(blob, (proyecto.nombre || 'proyecto') + '.json');
   };
 
-  document.getElementById('btn-import').onclick = () => {
-    document.getElementById('file-import').click();
-  };
+  document.getElementById('btn-import').onclick = () => document.getElementById('file-import').click();
   document.getElementById('file-import').onchange = async (e) => {
     const f = e.target.files[0];
     if (!f) return;
@@ -42,9 +66,7 @@ function bootstrap() {
     }
   };
 
-  document.getElementById('btn-importar-csv').onclick = () => {
-    document.getElementById('file-csv').click();
-  };
+  document.getElementById('btn-importar-csv').onclick = () => document.getElementById('file-csv').click();
   document.getElementById('file-csv').onchange = async (e) => {
     const f = e.target.files[0];
     if (!f) return;
@@ -68,12 +90,10 @@ function bootstrap() {
       return;
     }
     const r = optimizar(proyecto);
-    renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0);
+    renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0, proyecto);
   };
 
   document.getElementById('btn-imprimir').onclick = () => window.print();
-
-  inicializarSplitter();
 }
 
 function inicializarSplitter() {
