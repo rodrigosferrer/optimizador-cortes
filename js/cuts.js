@@ -1,10 +1,16 @@
-// Decompose a placa layout (pieces with x/y/ancho/alto) into a sequence of
-// guillotine cuts that the operator must perform on the panel saw.
+// Decompose a placa layout into a sequence of guillotine cuts that minimizes
+// the total cut count. Brute-force search with branch-and-bound pruning.
 //
-// Algorithm: recursive top-down decomposition. For each rectangle, find a
-// horizontal or vertical cut line that no piece straddles, splitting the
-// rectangle into two halves. Recurse on each half. Stop when the rectangle
-// contains 0 or 1 pieces.
+// At each rectangle we try every valid horizontal AND vertical cut, recurse,
+// and keep the option that produces the fewest total cuts. Pure function — no
+// shared mutable state — so backtracking is free.
+//
+// Return convention from the search:
+//   []     -> base case: rect contains no piece, or one piece that fills it
+//             (no cuts needed).
+//   array  -> the chosen cut sequence.
+//   null   -> no valid decomposition exists within the budget (`limit`); the
+//             caller should ignore this branch.
 
 const TOL = 0.5; // mm tolerance for "is on edge"
 
@@ -16,65 +22,74 @@ export function planCortes(placa, kerf = 0) {
     x2: c.x + c.ancho,
     y2: c.y + c.alto,
   }));
-  const cortes = [];
-  decomponer({ x: 0, y: 0, x2: placa.ancho, y2: placa.alto }, piezas, cortes, kerf);
+  const cortes = buscarOptimo(
+    { x: 0, y: 0, x2: placa.ancho, y2: placa.alto },
+    piezas,
+    kerf,
+    Infinity
+  ) || [];
   return cortes.map((c, i) => ({ n: i + 1, ...c }));
 }
 
-function decomponer(rect, piezas, cortes, kerf) {
+function buscarOptimo(rect, piezas, kerf, limit) {
   const dentro = piezas.filter(p =>
     p.x >= rect.x - TOL && p.y >= rect.y - TOL &&
     p.x2 <= rect.x2 + TOL && p.y2 <= rect.y2 + TOL
   );
-  // No pieces in this region: nothing to cut (the operator just keeps the leftover slab).
-  if (dentro.length === 0) return;
-  // One piece that exactly fills the rect: no further cut needed.
+  if (dentro.length === 0) return [];
   if (dentro.length === 1) {
     const p = dentro[0];
     const fillsX = p.x <= rect.x + TOL && p.x2 >= rect.x2 - TOL;
     const fillsY = p.y <= rect.y + TOL && p.y2 >= rect.y2 - TOL;
-    if (fillsX && fillsY) return;
+    if (fillsX && fillsY) return [];
   }
+  // Need at least one cut from here on. If budget is < 1, impossible.
+  if (limit < 1) return null;
 
-  // Try horizontal cut first (any y-line not straddled by any piece)
+  let mejor = null;
+
+  // Horizontal cut candidates
   const candY = new Set();
   for (const p of dentro) { candY.add(p.y); candY.add(p.y2); }
-  const ysOrdenados = [...candY].filter(y => y > rect.y + TOL && y < rect.y2 - TOL).sort((a, b) => a - b);
-  for (const y of ysOrdenados) {
+  const ys = [...candY].filter(y => y > rect.y + TOL && y < rect.y2 - TOL).sort((a, b) => a - b);
+  for (const y of ys) {
     if (dentro.some(p => p.y < y - TOL && p.y2 > y + TOL)) continue;
-    // Lower sub-rect starts AFTER the kerf so we don't re-cut the kerf gap.
-    const sup = { x: rect.x, y: rect.y, x2: rect.x2, y2: y };
-    const inf = { x: rect.x, y: y + kerf, x2: rect.x2, y2: rect.y2 };
-    cortes.push({
-      tipo: 'horizontal',
-      pos: y,
-      desde: rect.x, hasta: rect.x2,
-      largo: rect.x2 - rect.x,
-      kerf,
-    });
-    decomponer(sup, dentro, cortes, kerf);
-    decomponer(inf, dentro, cortes, kerf);
-    return;
+    const cap = mejor ? mejor.length - 1 : limit - 1;
+    const candidato = evaluar(
+      { x: rect.x, y: rect.y, x2: rect.x2, y2: y },
+      { x: rect.x, y: y + kerf, x2: rect.x2, y2: rect.y2 },
+      { tipo: 'horizontal', pos: y, desde: rect.x, hasta: rect.x2, largo: rect.x2 - rect.x, kerf },
+      dentro, kerf, cap
+    );
+    if (candidato !== null && (!mejor || candidato.length < mejor.length)) mejor = candidato;
   }
 
-  // Vertical cut
+  // Vertical cut candidates
   const candX = new Set();
   for (const p of dentro) { candX.add(p.x); candX.add(p.x2); }
-  const xsOrdenados = [...candX].filter(x => x > rect.x + TOL && x < rect.x2 - TOL).sort((a, b) => a - b);
-  for (const x of xsOrdenados) {
+  const xs = [...candX].filter(x => x > rect.x + TOL && x < rect.x2 - TOL).sort((a, b) => a - b);
+  for (const x of xs) {
     if (dentro.some(p => p.x < x - TOL && p.x2 > x + TOL)) continue;
-    const izq = { x: rect.x, y: rect.y, x2: x, y2: rect.y2 };
-    const der = { x: x + kerf, y: rect.y, x2: rect.x2, y2: rect.y2 };
-    cortes.push({
-      tipo: 'vertical',
-      pos: x,
-      desde: rect.y, hasta: rect.y2,
-      largo: rect.y2 - rect.y,
-      kerf,
-    });
-    decomponer(izq, dentro, cortes, kerf);
-    decomponer(der, dentro, cortes, kerf);
-    return;
+    const cap = mejor ? mejor.length - 1 : limit - 1;
+    const candidato = evaluar(
+      { x: rect.x, y: rect.y, x2: x, y2: rect.y2 },
+      { x: x + kerf, y: rect.y, x2: rect.x2, y2: rect.y2 },
+      { tipo: 'vertical', pos: x, desde: rect.y, hasta: rect.y2, largo: rect.y2 - rect.y, kerf },
+      dentro, kerf, cap
+    );
+    if (candidato !== null && (!mejor || candidato.length < mejor.length)) mejor = candidato;
   }
-  // Should not reach here for a valid guillotine layout.
+
+  return mejor; // may be null if no candidate fits the budget
+}
+
+// Returns [corte, ...subcuts] or null if total exceeds `presupuestoSubtree`
+// (i.e., the combined sub-cut count must be <= presupuestoSubtree).
+function evaluar(sub1, sub2, corte, piezas, kerf, presupuestoSubtree) {
+  if (presupuestoSubtree < 0) return null;
+  const c1 = buscarOptimo(sub1, piezas, kerf, presupuestoSubtree);
+  if (c1 === null) return null;
+  const c2 = buscarOptimo(sub2, piezas, kerf, presupuestoSubtree - c1.length);
+  if (c2 === null) return null;
+  return [corte, ...c1, ...c2];
 }
