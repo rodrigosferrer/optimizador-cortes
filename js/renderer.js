@@ -163,12 +163,14 @@ function dibujarCortes(svg, placa, cortes) {
 }
 
 function badgePieza(c, n) {
-  // Small numbered badge in the top-left corner of the piece, matching the
-  // index shown in the textual list below the SVG.
+  // Small numbered badge in the top-RIGHT corner of the piece, matching the
+  // index shown in the textual list below the SVG. Right-aligned so it
+  // doesn't collide with the red cut badges (which sit at the top-LEFT of
+  // their cut lines).
   const dim = Math.min(c.ancho, c.alto);
   const r = Math.max(15, Math.min(dim * 0.09, 38));
   const margin = r + 6;
-  const cx = c.x + margin;
+  const cx = c.x + c.ancho - margin;
   const cy = c.y + margin;
   const fontSize = r * 1.3;
 
