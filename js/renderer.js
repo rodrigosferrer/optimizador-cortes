@@ -1,6 +1,7 @@
 // Renders the optimizer result into an HTML container as SVG.
 
 import { planCortes } from './cuts.js';
+import { tip } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -27,10 +28,10 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
   resumen.innerHTML = `
     <div>Placas usadas: <strong>${m.placasUsadas}</strong>${
       cota > 0
-        ? ` <span class="cota" title="Mínimo teórico (cota por área). Con cortes guillotine puede no ser alcanzable.">(mínimo teórico: ${cota}${enOptimo ? ' ✓' : ''})</span>`
+        ? ` <span class="cota">(mínimo teórico: ${cota}${enOptimo ? ' ✓' : ''})</span>${tip('Mínimo absoluto según el área total de las piezas. Con cortes guillotine no siempre es alcanzable.')}`
         : ''
     }</div>
-    <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong></div>
+    <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong>${tip('Porcentaje del área de las placas usado por piezas (vs. desperdicio).')}</div>
     <div>Desperdicio: <strong>${(m.desperdicio * 100).toFixed(1)}%</strong></div>
     ${m.placasFaltantes > 0 ? `<div class="warn">⚠ Faltan ${m.placasFaltantes} placa(s) en stock</div>` : ''}
   `;
@@ -303,7 +304,7 @@ function listaCortes(cortes) {
   const wrap = document.createElement('div');
   wrap.className = 'detalle-col';
   const titulo = document.createElement('h4');
-  titulo.textContent = 'Plan de cortes (en orden)';
+  titulo.innerHTML = `Plan de cortes (en orden) ${tip('Secuencia de cortes guillotine ejecutables en una sierra de panel. Cada corte va de borde a borde del pedazo en el que estás trabajando en ese momento.')}`;
   wrap.appendChild(titulo);
   if (cortes.length === 0) {
     const p = document.createElement('p');
