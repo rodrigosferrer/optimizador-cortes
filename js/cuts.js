@@ -26,7 +26,15 @@ function decomponer(rect, piezas, cortes, kerf) {
     p.x >= rect.x - TOL && p.y >= rect.y - TOL &&
     p.x2 <= rect.x2 + TOL && p.y2 <= rect.y2 + TOL
   );
-  if (dentro.length <= 1) return;
+  // No pieces in this region: nothing to cut (the operator just keeps the leftover slab).
+  if (dentro.length === 0) return;
+  // One piece that exactly fills the rect: no further cut needed.
+  if (dentro.length === 1) {
+    const p = dentro[0];
+    const fillsX = p.x <= rect.x + TOL && p.x2 >= rect.x2 - TOL;
+    const fillsY = p.y <= rect.y + TOL && p.y2 >= rect.y2 - TOL;
+    if (fillsX && fillsY) return;
+  }
 
   // Try horizontal cut first (any y-line not straddled by any piece)
   const candY = new Set();
