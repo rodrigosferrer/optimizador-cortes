@@ -343,27 +343,38 @@ function printSummary(proyecto, resultado) {
   const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
   const m = resultado.metricas;
   const totalPiezas = proyecto.piezas.reduce((s, p) => s + (p.cantidad || 0), 0);
-  const filas = proyecto.piezas.map((p, i) => `
-    <tr>
-      <td>${i + 1}</td>
-      <td>${escapeHtml(p.nombre || '')}</td>
-      <td style="text-align:right">${p.ancho}</td>
-      <td style="text-align:right">${p.alto}</td>
-      <td style="text-align:right">${p.cantidad}</td>
-      <td>${p.vetaDireccion || 'libre'}</td>
-    </tr>
-  `).join('');
+
+  const grupos = proyecto.grupos || [];
+  const seccionesGrupo = grupos.map(g => {
+    const piezasGrupo = proyecto.piezas.filter(p => p.grupoId === g.id);
+    if (piezasGrupo.length === 0) return '';
+    const m2 = piezasGrupo.reduce((s, p) => s + (p.ancho * p.alto * p.cantidad) / 1e6, 0);
+    const cant = piezasGrupo.reduce((s, p) => s + (p.cantidad || 0), 0);
+    const filas = piezasGrupo.map((p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(p.nombre || '')}</td>
+        <td style="text-align:right">${p.ancho}</td>
+        <td style="text-align:right">${p.alto}</td>
+        <td style="text-align:right">${p.cantidad}</td>
+        <td>${p.vetaDireccion || 'libre'}</td>
+      </tr>
+    `).join('');
+    return `
+      <h3 class="grupo-titulo">${escapeHtml(g.nombre)} <span class="meta">(${cant} pieza${cant === 1 ? '' : 's'} · ${m2.toFixed(2)} m²)</span></h3>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Nombre</th><th>Ancho (mm)</th><th>Alto (mm)</th><th>Cant.</th><th>Veta</th></tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+    `;
+  }).join('');
+
   wrap.innerHTML = `
     <h2>${escapeHtml(proyecto.nombre || 'Optimizador de Cortes')}</h2>
     <div class="meta">${fecha} — ${totalPiezas} piezas, ${m.placasUsadas} placa(s), ${(m.aprovechamiento * 100).toFixed(1)}% de aprovechamiento</div>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th><th>Nombre</th><th>Ancho (mm)</th><th>Alto (mm)</th><th>Cant.</th><th>Veta</th>
-        </tr>
-      </thead>
-      <tbody>${filas}</tbody>
-    </table>
+    ${seccionesGrupo}
   `;
   return wrap;
 }

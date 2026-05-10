@@ -46,10 +46,10 @@ function montarBotones() {
     <button id="btn-export">${icon('download')} Exportar JSON</button>
     <button id="btn-import">${icon('upload')} Importar JSON</button>
   `;
-  // Pieces actions
+  // Pieces actions (group-level — "+ Pieza" now lives inside each group card)
   const piezas = document.getElementById('acciones-piezas');
   piezas.innerHTML = `
-    <button id="btn-agregar-pieza">${icon('plus')} Pieza</button>
+    <button id="btn-agregar-mueble" class="primary">${icon('plus')} Mueble</button>
     <button id="btn-importar-csv">${icon('upload')} Importar CSV</button>
     <button id="btn-exportar-csv">${icon('download')} Exportar CSV</button>
   `;
@@ -90,7 +90,8 @@ function montarBotones() {
     const f = e.target.files[0];
     if (!f) return;
     try {
-      const piezas = parsearCSV(await f.text());
+      const { piezas, grupos } = parsearCSV(await f.text(), []);
+      proyecto.grupos = grupos;
       proyecto.piezas = piezas;
       uiPiezas.rerender(proyecto, onChange);
       onChange();
@@ -99,8 +100,8 @@ function montarBotones() {
     }
   };
   document.getElementById('btn-exportar-csv').onclick = () => {
-    const blob = new Blob([serializarCSV(proyecto.piezas)], { type: 'text/csv' });
-    descargar(blob, 'piezas.csv');
+    const blob = new Blob([serializarCSV(proyecto)], { type: 'text/csv' });
+    descargar(blob, (proyecto.nombre || 'piezas') + '.csv');
   };
 
   document.getElementById('btn-calcular').onclick = () => {

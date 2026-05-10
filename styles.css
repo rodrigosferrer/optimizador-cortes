@@ -287,6 +287,44 @@ label { display: inline-flex; align-items: center; gap: var(--space-1); font-siz
   border-radius: var(--r-sm);
 }
 
+/* === Group cards === */
+.grupo-card {
+  background: var(--panel-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.grupo-header {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.grupo-nombre {
+  flex: 1 1 auto;
+  font-weight: 600;
+  font-size: 0.95rem;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 6px;
+  border-radius: var(--r-sm);
+  color: var(--fg);
+}
+.grupo-nombre:hover { background: var(--panel); border-color: var(--border-soft); }
+.grupo-nombre:focus {
+  background: var(--panel);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.grupo-stats {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.grupo-acciones { margin-top: var(--space-2); }
+.tabla-grupo { margin: 0; }
+
 /* === Tables === */
 table { border-collapse: separate; border-spacing: 0; width: 100%; margin: var(--space-3) 0; font-size: 0.875rem; }
 thead th {

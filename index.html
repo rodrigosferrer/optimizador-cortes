@@ -35,24 +35,12 @@
         </label>
       </div>
 
-      <h2>Piezas</h2>
-      <table id="tabla-piezas">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Ancho</th>
-            <th>Alto</th>
-            <th>Cant.</th>
-            <th>Veta
-              <span class="tip" data-tip="libre = puede rotar.&#10;ancho = la veta corre a lo largo del ancho.&#10;alto = a lo largo del alto.&#10;Las piezas con veta direccional deben alinearse con la veta de la placa.">
-                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              </span>
-            </th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <h2>Piezas
+        <span class="tip" data-tip="Cada pieza pertenece a un mueble. La columna Veta indica si puede rotar libre o si su veta debe alinearse con la veta de la placa.">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        </span>
+      </h2>
+      <div id="grupos-container"></div>
       <div class="acciones" id="acciones-piezas"></div>
       <input type="file" id="file-csv" accept=".csv,text/csv" hidden>
     </section>
