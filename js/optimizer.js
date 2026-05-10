@@ -9,31 +9,110 @@ const ESTRATEGIAS = [
   { nombre: 'perimetro-desc', cmp: (p, q) => (q.ancho + q.alto) - (p.ancho + p.alto) },
 ];
 
+const SA_DEFAULTS = {
+  iteraciones: 4000,
+  // Temperatures expressed as a FRACTION of one plate's area, so the
+  // Metropolis criterion stays meaningful regardless of plate size.
+  tempInicialFrac: 0.10,
+  tempFinalFrac: 0.0005,
+  semilla: 0x9e3779b1, // deterministic by default
+};
+
 export function optimizar({ piezas, placas, config }) {
   const kerf = config.kerf || 0;
   const margen = config.margenPlaca || 0;
+  const sa = { ...SA_DEFAULTS, ...(config.sa || {}) };
 
   const expandidas = expandirPiezas(piezas);
   const colocables = expandidas.filter(p => cabeEnAlgunStock(p, placas, margen));
   const noColocables = expandidas.filter(p => !cabeEnAlgunStock(p, placas, margen));
 
+  // Warm start: best of the deterministic strategies.
+  let mejorOrden = null;
   let mejorRun = null;
+  let mejorEtiqueta = '';
   for (const estrategia of ESTRATEGIAS) {
     const ordenadas = [...colocables].sort(estrategia.cmp);
     const run = correr(ordenadas, placas, kerf, margen);
-    run.estrategia = estrategia.nombre;
-    if (esMejor(run, mejorRun)) mejorRun = run;
+    if (esMejor(run, mejorRun)) { mejorRun = run; mejorOrden = ordenadas; mejorEtiqueta = estrategia.nombre; }
+  }
+
+  // Simulated Annealing: explore permutations of `colocables`.
+  if (sa.iteraciones > 0 && colocables.length >= 2) {
+    const resultado = recocerSimulado(mejorOrden, mejorRun, placas, kerf, margen, sa);
+    if (esMejor(resultado.run, mejorRun)) {
+      mejorRun = resultado.run;
+      mejorEtiqueta = `sa (mejoró desde ${mejorEtiqueta} en iter ${resultado.iterMejora})`;
+    } else {
+      mejorEtiqueta += ' (sa no mejoró)';
+    }
   }
 
   const errores = noColocables.map(p => `La pieza '${p.nombre}' no entra en ninguna placa stock`);
 
   const metricas = calcularMetricas(mejorRun.placasAbiertas, colocables, mejorRun.stock);
-  metricas.estrategia = mejorRun.estrategia;
+  metricas.estrategia = mejorEtiqueta;
   return {
     placas: mejorRun.placasAbiertas.map(formatearPlaca),
     metricas,
     errores,
   };
+}
+
+function recocerSimulado(ordenInicial, runInicial, placas, kerf, margen, sa) {
+  const rng = mulberry32(sa.semilla);
+  const orden = [...ordenInicial];
+  let mejorRun = runInicial;
+  let mejorOrden = [...orden];
+  let mejorCosto = costo(runInicial, placas);
+  let actualCosto = mejorCosto;
+  let iterMejora = 0;
+
+  const N = sa.iteraciones;
+  const placaArea = placas.length > 0 ? placas[0].ancho * placas[0].alto : 1;
+  const tempInicial = sa.tempInicialFrac * placaArea;
+  const tempFinal = sa.tempFinalFrac * placaArea;
+  const lnRatio = Math.log(tempFinal / tempInicial);
+
+  for (let i = 0; i < N; i++) {
+    const T = tempInicial * Math.exp((i / N) * lnRatio);
+    // Move: swap two distinct positions
+    const a = Math.floor(rng() * orden.length);
+    let b = Math.floor(rng() * orden.length);
+    if (a === b) b = (b + 1) % orden.length;
+    [orden[a], orden[b]] = [orden[b], orden[a]];
+
+    const run = correr(orden, placas, kerf, margen);
+    const c = costo(run, placas);
+    const delta = c - actualCosto;
+
+    if (delta <= 0 || rng() < Math.exp(-delta / T)) {
+      actualCosto = c;
+      if (c < mejorCosto) {
+        mejorCosto = c;
+        mejorRun = run;
+        mejorOrden = [...orden];
+        iterMejora = i;
+      }
+    } else {
+      // Reject: revert swap
+      [orden[a], orden[b]] = [orden[b], orden[a]];
+    }
+  }
+  return { run: mejorRun, orden: mejorOrden, iterMejora };
+}
+
+// Cost: heavily penalize extra plates, then minimize wasted area.
+function costo(run, placas) {
+  const placaArea = placas.length > 0 ? placas[0].ancho * placas[0].alto : 1;
+  const numPlacas = run.placasAbiertas.length;
+  let areaUsada = 0;
+  for (const p of run.placasAbiertas) {
+    for (const c of p.colocaciones) areaUsada += c.ancho * c.alto;
+  }
+  const areaTotal = run.placasAbiertas.reduce((s, p) => s + p.ancho * p.alto, 0);
+  const areaSobrante = areaTotal - areaUsada;
+  return numPlacas * placaArea + areaSobrante;
 }
 
 function correr(piezasOrdenadas, placas, kerf, margen) {
@@ -47,16 +126,20 @@ function correr(piezasOrdenadas, placas, kerf, margen) {
 
 function esMejor(run, mejor) {
   if (!mejor) return true;
-  const a = run.placasAbiertas.length;
-  const b = mejor.placasAbiertas.length;
-  if (a !== b) return a < b;
-  // Same plate count: prefer the one with smaller total free area on the LAST plate
-  // (concentrates waste so it might be reusable as a leftover slab).
-  const lastA = run.placasAbiertas[run.placasAbiertas.length - 1];
-  const lastB = mejor.placasAbiertas[mejor.placasAbiertas.length - 1];
-  const usadaA = lastA ? lastA.colocaciones.reduce((s, c) => s + c.ancho * c.alto, 0) : 0;
-  const usadaB = lastB ? lastB.colocaciones.reduce((s, c) => s + c.ancho * c.alto, 0) : 0;
-  return usadaA < usadaB;
+  return costo(run, [{ ancho: run.placasAbiertas[0]?.ancho || 1, alto: run.placasAbiertas[0]?.alto || 1 }])
+       < costo(mejor, [{ ancho: mejor.placasAbiertas[0]?.ancho || 1, alto: mejor.placasAbiertas[0]?.alto || 1 }]);
+}
+
+// Mulberry32 PRNG — small, fast, deterministic.
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function cabeEnAlgunStock(pieza, placas, margen) {
