@@ -360,11 +360,24 @@ table input[type=number] { width: 70px; }
     --bg: #fff;
     --panel: #fff;
     --border: #ccc;
+    --config-width: 0px !important;
   }
+  html, body { overflow: visible !important; height: auto !important; }
   header, .config-panel, .acciones-resultado, .errores, button, .splitter { display: none !important; }
-  main { display: block; padding: 0; gap: 0; }
-  .resultado-panel { border: none; padding: 0; box-shadow: none; }
-  .placa-wrap { page-break-after: always; box-shadow: none; border: none; padding: 0; }
+  main {
+    display: block !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    grid-template-columns: none !important;
+    min-height: 0 !important;
+  }
+  .resultado-panel {
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+  .placa-wrap { page-break-after: always; box-shadow: none; border: none; padding: 0; max-width: none; }
   .placa-wrap:last-child { page-break-after: auto; }
   .placa-svg { max-width: 100%; }
   body { background: #fff; }
