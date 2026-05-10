@@ -11,14 +11,31 @@ export function optimizar({ piezas, placas, config }) {
   const stock = [...placas.map(p => ({ ...p }))];
   const placasAbiertas = [];
   const errores = [];
+  const piezasColocables = [];
 
   for (const pieza of expandidas) {
+    if (!cabeEnAlgunStock(pieza, placas, margen)) {
+      errores.push(`La pieza '${pieza.nombre}' no entra en ninguna placa stock`);
+      continue;
+    }
+    piezasColocables.push(pieza);
     const colocada = colocarPieza(pieza, placasAbiertas, stock, kerf, margen);
     if (!colocada) errores.push(`No se pudo colocar la pieza '${pieza.nombre}'`);
   }
 
-  const metricas = calcularMetricas(placasAbiertas, expandidas, stock);
+  const metricas = calcularMetricas(placasAbiertas, piezasColocables, stock);
   return { placas: placasAbiertas.map(formatearPlaca), metricas, errores };
+}
+
+function cabeEnAlgunStock(pieza, placas, margen) {
+  for (const tipo of placas) {
+    const w = tipo.ancho - 2 * margen;
+    const h = tipo.alto - 2 * margen;
+    const fits = pieza.ancho <= w && pieza.alto <= h;
+    const fitsRot = pieza.rotable && pieza.ancho <= h && pieza.alto <= w;
+    if (fits || fitsRot) return true;
+  }
+  return false;
 }
 
 function expandirPiezas(piezas) {
@@ -64,29 +81,39 @@ function abrirPlaca(tipo, margen) {
 }
 
 function intentarColocar(pieza, placa, kerf) {
+  const orientaciones = pieza.rotable && pieza.ancho !== pieza.alto
+    ? [{ w: pieza.ancho, h: pieza.alto, rotada: false },
+       { w: pieza.alto, h: pieza.ancho, rotada: true }]
+    : [{ w: pieza.ancho, h: pieza.alto, rotada: false }];
+
   let mejor = null;
   let mejorScore = Infinity;
-  for (const libre of placa.libres) {
-    if (libre.ancho < pieza.ancho || libre.alto < pieza.alto) continue;
-    const sobraW = libre.ancho - pieza.ancho;
-    const sobraH = libre.alto - pieza.alto;
-    const score = Math.min(sobraW, sobraH);
-    if (score < mejorScore) { mejor = libre; mejorScore = score; }
+  let mejorOri = null;
+
+  for (const ori of orientaciones) {
+    for (const libre of placa.libres) {
+      if (libre.ancho < ori.w || libre.alto < ori.h) continue;
+      const score = Math.min(libre.ancho - ori.w, libre.alto - ori.h);
+      if (score < mejorScore) {
+        mejor = libre; mejorScore = score; mejorOri = ori;
+      }
+    }
   }
   if (!mejor) return false;
 
+  const w = mejorOri.w, h = mejorOri.h;
   placa.colocaciones.push({
     piezaId: pieza.id,
     nombre: pieza.nombre,
     x: mejor.x, y: mejor.y,
-    ancho: pieza.ancho, alto: pieza.alto,
-    rotada: false,
+    ancho: w, alto: h,
+    rotada: mejorOri.rotada,
   });
 
-  const sobraW = mejor.ancho - pieza.ancho;
-  const sobraH = mejor.alto - pieza.alto;
-  const ocupadoW = pieza.ancho + kerf;
-  const ocupadoH = pieza.alto + kerf;
+  const sobraW = mejor.ancho - w;
+  const sobraH = mejor.alto - h;
+  const ocupadoW = w + kerf;
+  const ocupadoH = h + kerf;
 
   const nuevos = [];
   if (sobraW > sobraH) {
@@ -94,14 +121,14 @@ function intentarColocar(pieza, placa, kerf) {
       nuevos.push({ x: mejor.x + ocupadoW, y: mejor.y, ancho: mejor.ancho - ocupadoW, alto: mejor.alto });
     }
     if (mejor.alto - ocupadoH > 0) {
-      nuevos.push({ x: mejor.x, y: mejor.y + ocupadoH, ancho: pieza.ancho, alto: mejor.alto - ocupadoH });
+      nuevos.push({ x: mejor.x, y: mejor.y + ocupadoH, ancho: w, alto: mejor.alto - ocupadoH });
     }
   } else {
     if (mejor.alto - ocupadoH > 0) {
       nuevos.push({ x: mejor.x, y: mejor.y + ocupadoH, ancho: mejor.ancho, alto: mejor.alto - ocupadoH });
     }
     if (mejor.ancho - ocupadoW > 0) {
-      nuevos.push({ x: mejor.x + ocupadoW, y: mejor.y, ancho: mejor.ancho - ocupadoW, alto: pieza.alto });
+      nuevos.push({ x: mejor.x + ocupadoW, y: mejor.y, ancho: mejor.ancho - ocupadoW, alto: h });
     }
   }
 

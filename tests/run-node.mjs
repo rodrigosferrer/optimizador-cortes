@@ -23,7 +23,7 @@ test('empty input returns empty result', () => {
 
 test('one piece fits in one plate at origin', () => {
   const r = optimizar({
-    piezas: [{ id: 'a', nombre: 'A', ancho: 600, alto: 400, cantidad: 1, rotable: true }],
+    piezas: [{ id: 'a', nombre: 'A', ancho: 600, alto: 400, cantidad: 1, rotable: false }],
     placas: [{ ancho: 2750, alto: 1830, cantidad: 5 }],
     config: { kerf: 0, margenPlaca: 0 },
   });
