@@ -110,8 +110,7 @@ function dibujarPlaca(placa, cortes = []) {
     rect.setAttribute('filter', 'url(#piezaShadow)');
     g.appendChild(rect);
 
-    g.appendChild(etiquetaPieza(c));
-    g.appendChild(badgePieza(c, idx + 1));
+    g.appendChild(etiquetaPieza(c, idx + 1));
 
     svg.appendChild(g);
   });
@@ -162,43 +161,10 @@ function dibujarCortes(svg, placa, cortes) {
   }
 }
 
-function badgePieza(c, n) {
-  // Small numbered badge in the BOTTOM-LEFT corner of the piece, matching the
-  // index shown in the textual list below the SVG. Bottom-aligned so it
-  // doesn't collide with the red cut badges (which sit near the START of
-  // their cut lines, always near the top of their sub-rect).
-  const dim = Math.min(c.ancho, c.alto);
-  const r = Math.max(15, Math.min(dim * 0.09, 38));
-  const margin = r + 6;
-  const cx = c.x + margin;
-  const cy = c.y + c.alto - margin;
-  const fontSize = r * 1.3;
-
-  const g = document.createElementNS(SVG_NS, 'g');
-  const circle = document.createElementNS(SVG_NS, 'circle');
-  circle.setAttribute('cx', cx); circle.setAttribute('cy', cy);
-  circle.setAttribute('r', r);
-  circle.setAttribute('fill', '#1c1917');
-  circle.setAttribute('stroke', '#fff');
-  circle.setAttribute('stroke-width', 2);
-  g.appendChild(circle);
-
-  const text = document.createElementNS(SVG_NS, 'text');
-  text.setAttribute('x', cx); text.setAttribute('y', cy);
-  text.setAttribute('text-anchor', 'middle');
-  text.setAttribute('dominant-baseline', 'central');
-  text.setAttribute('font-size', fontSize);
-  text.setAttribute('font-weight', '600');
-  text.setAttribute('fill', '#fff');
-  text.textContent = n;
-  g.appendChild(text);
-  return g;
-}
-
-function etiquetaPieza(c) {
+function etiquetaPieza(c, n) {
   return etiquetaRect({
     x: c.x, y: c.y, ancho: c.ancho, alto: c.alto,
-    linea1: c.nombre,
+    linea1: `${n}. ${c.nombre}`,
     linea2: `${Math.round(c.ancho)}×${Math.round(c.alto)}${c.rotada ? ' ↻' : ''}`,
     color: '#000',
     italic: false,
