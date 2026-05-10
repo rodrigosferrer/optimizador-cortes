@@ -103,6 +103,41 @@
       assert(r.errores.length === 1, 'should error: piece does not fit');
     });
 
+    test('stock insufficient: places all pieces and reports faltantes', () => {
+      const r = optimizar({
+        piezas: [{ id: 'a', nombre: 'A', ancho: 2000, alto: 1500, cantidad: 5, rotable: false }],
+        placas: [{ ancho: 2750, alto: 1830, cantidad: 1 }],
+        config: { kerf: 0, margenPlaca: 0 },
+      });
+      assertEq(r.metricas.placasUsadas, 5);
+      assertEq(r.metricas.placasFaltantes, 4);
+      const total = r.placas.reduce((s, p) => s + p.colocaciones.length, 0);
+      assertEq(total, 5);
+    });
+
+    test('stock sufficient: placasFaltantes is 0', () => {
+      const r = optimizar({
+        piezas: [{ id: 'a', nombre: 'A', ancho: 2000, alto: 1500, cantidad: 2, rotable: false }],
+        placas: [{ ancho: 2750, alto: 1830, cantidad: 5 }],
+        config: { kerf: 0, margenPlaca: 0 },
+      });
+      assertEq(r.metricas.placasFaltantes, 0);
+    });
+
+    test('piece bigger than stock yields error, others still placed', () => {
+      const r = optimizar({
+        piezas: [
+          { id: 'a', nombre: 'Gigante', ancho: 5000, alto: 5000, cantidad: 1, rotable: true },
+          { id: 'b', nombre: 'Normal', ancho: 600, alto: 400, cantidad: 1, rotable: true },
+        ],
+        placas: [{ ancho: 2750, alto: 1830, cantidad: 5 }],
+        config: { kerf: 0, margenPlaca: 0 },
+      });
+      assert(r.errores.some(e => e.includes('Gigante')), 'expected error mentioning Gigante');
+      const total = r.placas.reduce((s, p) => s + p.colocaciones.length, 0);
+      assertEq(total, 1);
+    });
+
     render();
   </script>
 </body>
