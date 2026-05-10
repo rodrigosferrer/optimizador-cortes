@@ -140,17 +140,19 @@ function formatearPlaca(p) {
   return { ancho: p.ancho, alto: p.alto, colocaciones: p.colocaciones };
 }
 
-function calcularMetricas(placas, piezas, stock) {
+function calcularMetricas(placas, piezasColocables, stock) {
   const placasUsadas = placas.length;
   const placasFaltantes = stock.reduce((s, x) => s + (x.faltantes || 0), 0);
-  const areaPiezas = piezas.reduce((s, p) => s + p.ancho * p.alto, 0);
+  const areaPiezas = piezasColocables.reduce((s, p) => s + p.ancho * p.alto, 0);
   const areaTotal = placas.reduce((s, p) => s + p.ancho * p.alto, 0);
   const aprovechamiento = areaTotal > 0 ? areaPiezas / areaTotal : 0;
+  // Each piece needs at most 2 cuts to isolate. Useful upper bound for small layouts.
+  const cortesTotales = placas.reduce((s, p) => s + p.colocaciones.length * 2, 0);
   return {
     placasUsadas,
     placasFaltantes,
     aprovechamiento,
     desperdicio: 1 - aprovechamiento,
-    cortesTotales: 0,
+    cortesTotales,
   };
 }
