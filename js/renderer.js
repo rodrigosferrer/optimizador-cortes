@@ -94,19 +94,56 @@ function dibujarPlaca(placa) {
     rect.setAttribute('stroke', '#222'); rect.setAttribute('stroke-width', 2);
     g.appendChild(rect);
 
-    const label = document.createElementNS(SVG_NS, 'text');
-    label.setAttribute('x', c.x + c.ancho / 2);
-    label.setAttribute('y', c.y + c.alto / 2);
-    label.setAttribute('text-anchor', 'middle');
-    label.setAttribute('dominant-baseline', 'middle');
-    label.setAttribute('font-size', Math.max(40, Math.min(c.ancho, c.alto) / 8));
-    label.setAttribute('fill', '#000');
-    label.textContent = `${c.nombre} ${c.ancho}×${c.alto}${c.rotada ? ' ↻' : ''}`;
-    g.appendChild(label);
+    g.appendChild(etiquetaPieza(c));
 
     svg.appendChild(g);
   }
   return svg;
+}
+
+function etiquetaPieza(c) {
+  // Two lines: name + dimensions. Auto-fit font size; rotate 90° if piece is much taller than wide.
+  const linea1 = c.nombre;
+  const linea2 = `${Math.round(c.ancho)}×${Math.round(c.alto)}${c.rotada ? ' ↻' : ''}`;
+
+  const tall = c.alto > c.ancho * 1.4;
+  const longSide = tall ? c.alto : c.ancho;
+  const shortSide = tall ? c.ancho : c.alto;
+  const maxChars = Math.max(linea1.length, linea2.length);
+
+  // Width: text width ≈ chars * fontSize * 0.55. Solve for fontSize.
+  // Height: 2 lines + small gap ≈ fontSize * 2.4.
+  const fontByLong = (longSide * 0.92) / Math.max(maxChars * 0.55, 1);
+  const fontByShort = (shortSide * 0.85) / 2.4;
+  const fontSize = Math.max(14, Math.min(fontByLong, fontByShort, 80));
+
+  const cx = c.x + c.ancho / 2;
+  const cy = c.y + c.alto / 2;
+
+  const text = document.createElementNS(SVG_NS, 'text');
+  text.setAttribute('x', cx);
+  text.setAttribute('y', cy);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dominant-baseline', 'middle');
+  text.setAttribute('font-size', fontSize);
+  text.setAttribute('fill', '#000');
+  if (tall) {
+    text.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+  }
+
+  const t1 = document.createElementNS(SVG_NS, 'tspan');
+  t1.setAttribute('x', cx);
+  t1.setAttribute('dy', `-${fontSize * 0.55}`);
+  t1.textContent = linea1;
+
+  const t2 = document.createElementNS(SVG_NS, 'tspan');
+  t2.setAttribute('x', cx);
+  t2.setAttribute('dy', `${fontSize * 1.1}`);
+  t2.textContent = linea2;
+
+  text.appendChild(t1);
+  text.appendChild(t2);
+  return text;
 }
 
 function dibujarVeta(svg, placa) {
