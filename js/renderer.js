@@ -8,6 +8,9 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 export function render(container, resultado, kerf = 0, proyecto = null) {
   container.innerHTML = '';
 
+  // Build piezaId → "Mueble - Pieza" name map
+  const nombrePorPiezaId = construirMapaNombres(proyecto);
+
   // Print-only summary page (pieces table + project info), shown first when printing
   if (proyecto) container.appendChild(printSummary(proyecto, resultado));
 
@@ -42,7 +45,7 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     const wrap = document.createElement('div');
     wrap.className = 'placa-wrap';
     wrap.innerHTML = `<h3>Placa ${i + 1} — ${placa.ancho}×${placa.alto} mm</h3>`;
-    wrap.appendChild(dibujarPlaca(placa, cortes));
+    wrap.appendChild(dibujarPlaca(placa, cortes, nombrePorPiezaId));
     const detalle = document.createElement('div');
     detalle.className = 'placa-detalle';
     detalle.appendChild(listaPiezas(placa));
@@ -52,7 +55,7 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
   });
 }
 
-function dibujarPlaca(placa, cortes = []) {
+function dibujarPlaca(placa, cortes = [], nombrePorPiezaId = null) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${placa.ancho} ${placa.alto}`);
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
@@ -110,7 +113,8 @@ function dibujarPlaca(placa, cortes = []) {
     rect.setAttribute('filter', 'url(#piezaShadow)');
     g.appendChild(rect);
 
-    g.appendChild(etiquetaPieza(c, idx + 1));
+    const nombreCompleto = (nombrePorPiezaId && nombrePorPiezaId.get(c.piezaId)) || c.nombre;
+    g.appendChild(etiquetaPieza(c, idx + 1, nombreCompleto));
 
     svg.appendChild(g);
   });
@@ -161,14 +165,25 @@ function dibujarCortes(svg, placa, cortes) {
   }
 }
 
-function etiquetaPieza(c, n) {
+function etiquetaPieza(c, n, nombreCompleto) {
   return etiquetaRect({
     x: c.x, y: c.y, ancho: c.ancho, alto: c.alto,
-    linea1: `${n}. ${c.nombre}`,
+    linea1: `${n}. ${nombreCompleto || c.nombre}`,
     linea2: `${Math.round(c.ancho)}×${Math.round(c.alto)}${c.rotada ? ' ↻' : ''}`,
     color: '#000',
     italic: false,
   });
+}
+
+function construirMapaNombres(proyecto) {
+  if (!proyecto) return null;
+  const grupoPorId = new Map((proyecto.grupos || []).map(g => [g.id, g.nombre]));
+  const map = new Map();
+  for (const p of proyecto.piezas) {
+    const grupoNombre = grupoPorId.get(p.grupoId);
+    map.set(p.id, grupoNombre ? `${grupoNombre} - ${p.nombre}` : p.nombre);
+  }
+  return map;
 }
 
 // Auto-fit two-line label inside a rectangle. Rotates 90° if rect is much taller than wide.

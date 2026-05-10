@@ -27,9 +27,28 @@ export function rerender(proyecto, onChange) {
 function render() {
   const root = document.getElementById('grupos-container');
   root.innerHTML = '';
+  root.appendChild(renderTotalGlobal());
   for (const grupo of _proyecto.grupos) {
     root.appendChild(renderGrupo(grupo));
   }
+}
+
+function renderTotalGlobal() {
+  const total = totalGlobal();
+  const div = document.createElement('div');
+  div.className = 'total-global';
+  div.innerHTML = `
+    <span class="total-label">Total</span>
+    <span class="total-stats">${total.cant} pieza${total.cant === 1 ? '' : 's'} · ${total.m2.toFixed(2)} m² · ${_proyecto.grupos.length} mueble${_proyecto.grupos.length === 1 ? '' : 's'}</span>
+  `;
+  return div;
+}
+
+function totalGlobal() {
+  return {
+    cant: _proyecto.piezas.reduce((s, p) => s + (p.cantidad || 0), 0),
+    m2: _proyecto.piezas.reduce((s, p) => s + (p.ancho * p.alto * p.cantidad) / 1e6, 0),
+  };
 }
 
 function renderGrupo(grupo) {
@@ -170,6 +189,11 @@ function rerenderStats() {
     const stats = card.querySelector('.grupo-stats');
     if (stats) stats.textContent = `${cant} pieza${cant === 1 ? '' : 's'} · ${m2.toFixed(2)} m²`;
   });
+  const totalEl = document.querySelector('.total-global .total-stats');
+  if (totalEl) {
+    const t = totalGlobal();
+    totalEl.textContent = `${t.cant} pieza${t.cant === 1 ? '' : 's'} · ${t.m2.toFixed(2)} m² · ${_proyecto.grupos.length} mueble${_proyecto.grupos.length === 1 ? '' : 's'}`;
+  }
 }
 
 function escapeAttr(s) {

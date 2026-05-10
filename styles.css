@@ -295,6 +295,28 @@ label { display: inline-flex; align-items: center; gap: var(--space-1); font-siz
 }
 
 /* === Group cards === */
+.total-global {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  font-size: 0.85rem;
+}
+.total-global .total-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  color: var(--accent-hover);
+}
+.total-global .total-stats {
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
 .grupo-card {
   background: var(--panel-soft);
   border: 1px solid var(--border-soft);
