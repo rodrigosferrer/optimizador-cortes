@@ -496,7 +496,12 @@ function analizarSugerencias(resultado, proyecto, kerf) {
         if (Math.abs(s.x - (cx2 + kerf)) <= TOL &&
             s.y <= c.y + TOL &&
             (s.y + s.alto) >= cy2 - TOL) {
-          rightExt = Math.max(rightExt, Math.floor(s.ancho));
+          let extra = Math.floor(s.ancho);
+          // Bonus: if sobrante reaches the plate's right edge, the kerf
+          // reserved at that edge can also be consumed (no cut needed at
+          // the plate boundary).
+          if (Math.abs((s.x + s.ancho) - placa.ancho) <= TOL) extra += kerf;
+          rightExt = Math.max(rightExt, extra);
         }
       }
       let bottomExt = 0;
@@ -504,7 +509,9 @@ function analizarSugerencias(resultado, proyecto, kerf) {
         if (Math.abs(s.y - (cy2 + kerf)) <= TOL &&
             s.x <= c.x + TOL &&
             (s.x + s.ancho) >= cx2 - TOL) {
-          bottomExt = Math.max(bottomExt, Math.floor(s.alto));
+          let extra = Math.floor(s.alto);
+          if (Math.abs((s.y + s.alto) - placa.alto) <= TOL) extra += kerf;
+          bottomExt = Math.max(bottomExt, extra);
         }
       }
       // Map layout extension → piece axis extension (rotation-aware).
@@ -587,7 +594,10 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
   // the whole line.
   const procesarLinea = (linea, esHorizontal, sobrante, placa) => {
     if (linea.length < 2) return [];
-    const S = esHorizontal ? sobrante.ancho : sobrante.alto;
+    // Sobrante size, with plate-edge kerf bonus when applicable.
+    let S = esHorizontal ? sobrante.ancho : sobrante.alto;
+    if (esHorizontal && Math.abs((sobrante.x + sobrante.ancho) - placa.ancho) <= TOL) S += kerf;
+    if (!esHorizontal && Math.abs((sobrante.y + sobrante.alto) - placa.alto) <= TOL) S += kerf;
     const haveTransversal = esHorizontal ? sobrante.alto : sobrante.ancho;
 
     const conteo = new Map();
