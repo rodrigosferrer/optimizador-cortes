@@ -23,12 +23,13 @@ export function planCortes(placa, kerf = 0) {
     { x: 0, y: 0, x2: placa.ancho, y2: placa.alto },
     piezas,
     kerf,
-    Infinity
+    Infinity,
+    placa.ancho, placa.alto,
   ) || [];
   return cortes.map((c, i) => ({ n: i + 1, ...c }));
 }
 
-function buscarOptimo(rect, piezas, kerf, limit) {
+function buscarOptimo(rect, piezas, kerf, limit, placaAncho, placaAlto) {
   const dentro = piezas.filter(p =>
     p.x >= rect.x - TOL && p.y >= rect.y - TOL &&
     p.x2 <= rect.x2 + TOL && p.y2 <= rect.y2 + TOL
@@ -36,8 +37,16 @@ function buscarOptimo(rect, piezas, kerf, limit) {
   if (dentro.length === 0) return [];
   if (dentro.length === 1) {
     const p = dentro[0];
-    const fillsX = p.x <= rect.x + TOL && p.x2 >= rect.x2 - TOL;
-    const fillsY = p.y <= rect.y + TOL && p.y2 >= rect.y2 - TOL;
+    // A piece "fills" its sub-rect if it reaches the rect's edge. If the
+    // rect's right edge is the PLATE'S right edge, the piece can be within
+    // a kerf of it — the plate edge itself acts as a cut (the saw doesn't
+    // need to separate the piece from material that isn't there).
+    const rectEsBordeDerecho = Math.abs(rect.x2 - placaAncho) <= TOL;
+    const rectEsBordeInferior = Math.abs(rect.y2 - placaAlto) <= TOL;
+    const tolX = rectEsBordeDerecho ? kerf + TOL : TOL;
+    const tolY = rectEsBordeInferior ? kerf + TOL : TOL;
+    const fillsX = p.x <= rect.x + TOL && p.x2 >= rect.x2 - tolX;
+    const fillsY = p.y <= rect.y + TOL && p.y2 >= rect.y2 - tolY;
     if (fillsX && fillsY) return [];
   }
   if (limit < 1) return null;
@@ -59,7 +68,7 @@ function buscarOptimo(rect, piezas, kerf, limit) {
       { x: rect.x, y: rect.y, x2: rect.x2, y2: y },
       { x: rect.x, y: y + kerf, x2: rect.x2, y2: rect.y2 },
       { tipo: 'horizontal', pos: y, desde: rect.x, hasta: rect.x2, largo: rect.x2 - rect.x, kerf },
-      dentro, kerf, cap
+      dentro, kerf, cap, placaAncho, placaAlto
     ));
   }
 
@@ -74,7 +83,7 @@ function buscarOptimo(rect, piezas, kerf, limit) {
       { x: rect.x, y: rect.y, x2: x, y2: rect.y2 },
       { x: x + kerf, y: rect.y, x2: rect.x2, y2: rect.y2 },
       { tipo: 'vertical', pos: x, desde: rect.y, hasta: rect.y2, largo: rect.y2 - rect.y, kerf },
-      dentro, kerf, cap
+      dentro, kerf, cap, placaAncho, placaAlto
     ));
   }
 
@@ -93,11 +102,11 @@ function largoTotal(cortes) {
   return total;
 }
 
-function evaluar(sub1, sub2, corte, piezas, kerf, presupuestoSubtree) {
+function evaluar(sub1, sub2, corte, piezas, kerf, presupuestoSubtree, placaAncho, placaAlto) {
   if (presupuestoSubtree < 0) return null;
-  const c1 = buscarOptimo(sub1, piezas, kerf, presupuestoSubtree);
+  const c1 = buscarOptimo(sub1, piezas, kerf, presupuestoSubtree, placaAncho, placaAlto);
   if (c1 === null) return null;
-  const c2 = buscarOptimo(sub2, piezas, kerf, presupuestoSubtree - c1.length);
+  const c2 = buscarOptimo(sub2, piezas, kerf, presupuestoSubtree - c1.length, placaAncho, placaAlto);
   if (c2 === null) return null;
   return [corte, ...c1, ...c2];
 }
