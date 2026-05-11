@@ -43,8 +43,8 @@ function montarBotones() {
   const header = document.getElementById('acciones-header');
   header.innerHTML = `
     <button id="btn-nuevo">${icon('filePlus')} Nuevo</button>
-    <button id="btn-export">${icon('download')} Exportar JSON</button>
-    <button id="btn-import">${icon('upload')} Importar JSON</button>
+    <button id="btn-export" title="Exportar proyecto completo a archivo">${icon('download')} Exportar proyecto</button>
+    <button id="btn-import" title="Importar proyecto previamente exportado">${icon('upload')} Importar proyecto</button>
   `;
   // Pieces actions (group-level — "+ Pieza" now lives inside each group card)
   const piezas = document.getElementById('acciones-piezas');
