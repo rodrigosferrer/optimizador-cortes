@@ -2,7 +2,7 @@ import { cargar, guardar, proyectoVacio, exportarJSON, importarJSON } from './st
 import * as uiConfig from './ui-config.js';
 import * as uiPiezas from './ui-piezas.js';
 import { parsearCSV, serializarCSV } from './csv.js';
-import { optimizar } from './optimizer.js';
+import { optimizar, optimizarMejorVariante } from './optimizer.js';
 import { render as renderResultado } from './renderer.js';
 import { icon } from './icons.js';
 
@@ -57,7 +57,9 @@ function montarBotones() {
   const resultado = document.getElementById('acciones-resultado');
   resultado.innerHTML = `
     <button id="btn-calcular" class="primary">${icon('play')} Calcular cortes</button>
+    <button id="btn-buscar-variante" title="Prueba 20 variantes y se queda con la mejor (~3-5s)">${icon('sparkles')} Buscar mejor variante</button>
     <button id="btn-imprimir">${icon('printer')} Imprimir / PDF</button>
+    <span id="progreso-variante" class="progreso-variante" hidden></span>
   `;
 
   document.getElementById('btn-nuevo').onclick = () => {
@@ -111,6 +113,32 @@ function montarBotones() {
     }
     const r = optimizar(proyecto);
     renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0, proyecto);
+  };
+
+  document.getElementById('btn-buscar-variante').onclick = async () => {
+    if (proyecto.piezas.length === 0) {
+      alert('Agregá al menos una pieza antes de calcular.');
+      return;
+    }
+    const btn = document.getElementById('btn-buscar-variante');
+    const btnCalc = document.getElementById('btn-calcular');
+    const progreso = document.getElementById('progreso-variante');
+    btn.disabled = true;
+    btnCalc.disabled = true;
+    progreso.hidden = false;
+    progreso.textContent = 'Buscando…';
+    try {
+      const N = 20;
+      const r = await optimizarMejorVariante(proyecto, N, (i, n, best) => {
+        progreso.textContent = `Variante ${i}/${n} · mejor: ${best.metricas.placasUsadas} placa${best.metricas.placasUsadas === 1 ? '' : 's'}, ${(best.metricas.aprovechamiento*100).toFixed(1)}%`;
+      });
+      renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0, proyecto);
+      progreso.textContent = `✓ Mejor de ${N} variantes`;
+      setTimeout(() => { progreso.hidden = true; }, 3000);
+    } finally {
+      btn.disabled = false;
+      btnCalc.disabled = false;
+    }
   };
 
   document.getElementById('btn-imprimir').onclick = () => window.print();

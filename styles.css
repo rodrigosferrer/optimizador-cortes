@@ -131,7 +131,17 @@ body.splitter-dragging * { cursor: col-resize !important; }
 
 /* === Buttons === */
 .acciones { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.acciones-resultado { margin-bottom: var(--space-4); }
+.acciones-resultado { margin-bottom: var(--space-4); align-items: center; }
+.progreso-variante {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  padding: 4px 8px;
+  background: var(--accent-soft);
+  border-radius: var(--r-sm);
+  margin-left: var(--space-2);
+}
+button:disabled { opacity: 0.5; cursor: wait; }
 
 button {
   display: inline-flex; align-items: center; gap: var(--space-2);

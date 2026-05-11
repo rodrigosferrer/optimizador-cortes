@@ -25,6 +25,27 @@ const SA_DEFAULTS = {
   semilla: 0x9e3779b1,
 };
 
+// Run `n` independent optimizations with different SA seeds and return the
+// best. Yields between runs so the UI stays responsive. `onProgress(i, n, best)`
+// is called after each run (optional).
+export async function optimizarMejorVariante(input, n = 20, onProgress = null) {
+  let mejor = null;
+  let mejorCosto = Infinity;
+  const seedBase = 0x9e3779b1;
+  for (let i = 0; i < n; i++) {
+    await new Promise(r => setTimeout(r, 0));
+    const config = {
+      ...input.config,
+      sa: { ...(input.config?.sa || {}), semilla: (seedBase + i * 31337) >>> 0 },
+    };
+    const r = optimizar({ ...input, config });
+    const c = r.metricas.placasUsadas * 1e9 + r.metricas.desperdicio * 1e6;
+    if (c < mejorCosto) { mejor = r; mejorCosto = c; }
+    if (onProgress) onProgress(i + 1, n, mejor);
+  }
+  return mejor;
+}
+
 export function optimizar({ piezas, placas, config }) {
   // Partition by (material, espesor). Pieces with the same key go together,
   // and are restricted to plates with same key (or wildcard: empty mat/esp).
