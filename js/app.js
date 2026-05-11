@@ -172,11 +172,17 @@ function montarBotones() {
     try {
       const N = 20;
       const r = await optimizarMejorVariante(proyecto, N, (i, n, best) => {
-        progreso.textContent = `Variante ${i}/${n} · mejor: ${best.metricas.placasUsadas} placa${best.metricas.placasUsadas === 1 ? '' : 's'}, ${(best.metricas.aprovechamiento*100).toFixed(1)}%`;
+        progreso.textContent = `Variante ${i}/${n} · mejor de la tanda: ${best.metricas.placasUsadas} placa${best.metricas.placasUsadas === 1 ? '' : 's'}, ${(best.metricas.aprovechamiento*100).toFixed(1)}%`;
       });
-      renderConCallbacks(r);
-      progreso.textContent = `✓ Mejor de ${N} variantes`;
-      setTimeout(() => { progreso.hidden = true; }, 3000);
+      const costoActual = _ultimoResultado ? costoLayout(_ultimoResultado) : Infinity;
+      const costoNuevo = costoLayout(r);
+      if (costoNuevo < costoActual) {
+        renderConCallbacks(r);
+        progreso.textContent = `✓ Mejoró: ${r.metricas.placasUsadas} placa${r.metricas.placasUsadas === 1 ? '' : 's'}, ${(r.metricas.aprovechamiento*100).toFixed(1)}%`;
+      } else {
+        progreso.textContent = `⊘ Ninguna de ${N} variantes mejoró el resultado actual`;
+      }
+      setTimeout(() => { progreso.hidden = true; }, 4000);
     } finally {
       btn.disabled = false;
       btnCalc.disabled = false;
@@ -217,6 +223,12 @@ function inicializarSplitter() {
     const w = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--config-width'));
     if (Number.isFinite(w)) localStorage.setItem(KEY, w);
   });
+}
+
+// Same lexicographic key used internally by the optimizer to rank results.
+function costoLayout(r) {
+  if (!r) return Infinity;
+  return r.metricas.placasUsadas * 1e9 + r.metricas.desperdicio * 1e6;
 }
 
 function descargar(blob, nombre) {
