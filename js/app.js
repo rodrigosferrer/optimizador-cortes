@@ -174,6 +174,49 @@ function montarBotones() {
         uiPiezas.rerender(proyecto, onChange);
         renderConCallbacks(_ultimoResultado);
       },
+      onAplicarFila: (s) => {
+        const original = proyecto.piezas.find(p => p.id === s.piezaId);
+        if (!original) return;
+        const K = s.cantidadAfectada;
+        const N = s.cantidadTotal;
+        // Determine target pieza: if K < N → create variant, else use original
+        let target = original;
+        if (K < N) {
+          const variante = JSON.parse(JSON.stringify(original));
+          variante.id = crypto.randomUUID();
+          variante.cantidad = K;
+          variante[s.eje] = s.valorNuevo;
+          variante.nombre = original.nombre + ' (ext.)';
+          original.cantidad = N - K;
+          const idx = proyecto.piezas.indexOf(original);
+          proyecto.piezas.splice(idx + 1, 0, variante);
+          target = variante;
+        } else {
+          original[s.eje] = s.valorNuevo;
+        }
+        // Apply shift-and-grow to colocaciones (sorted by position).
+        // The first one stays in place but grows; each subsequent shifts by (i * extension).
+        const ext = s.extension;
+        const horizontal = s.orientacion === 'horizontal';
+        const sorted = [...s.colocaciones].sort((a, b) => horizontal ? a.x - b.x : a.y - b.y);
+        sorted.forEach((c, i) => {
+          c.piezaId = target.id;
+          c.nombre = target.nombre;
+          c.cantos = target.cantos;
+          if (horizontal) {
+            c.x += i * ext;
+            c.ancho += ext;
+          } else {
+            c.y += i * ext;
+            c.alto += ext;
+          }
+        });
+        // Recompute sobrantes on affected plate
+        aplicarPiezaInPlace(_ultimoResultado, target, kerf);
+        onChange();
+        uiPiezas.rerender(proyecto, onChange);
+        renderConCallbacks(_ultimoResultado);
+      },
       onEditarPieza: (piezaId, cambios) => {
         const pieza = proyecto.piezas.find(p => p.id === piezaId);
         if (!pieza) return;

@@ -558,10 +558,115 @@ function analizarSugerencias(resultado, proyecto, kerf) {
       }
     }
   }
-  return sugerencias.sort((a, b) =>
-    (b.extension * (b.type === 'extender' ? b.cantidad : b.cantidadAfectada)) -
-    (a.extension * (a.type === 'extender' ? a.cantidad : a.cantidadAfectada))
-  );
+  // Augment with row/column "shift-and-grow" suggestions: when K same-pieza
+  // instances are arranged in a row (or column) and a sobrante sits at the
+  // end of that row, each instance can grow by sobrante / K (shifting the
+  // ones after the first to maintain kerf).
+  for (const s of detectarFilasYColumnas(resultado, proyecto, kerf)) {
+    sugerencias.push(s);
+  }
+
+  return sugerencias.sort((a, b) => {
+    const ka = a.extension * (a.cantidadAfectada || a.cantidad || 1);
+    const kb = b.extension * (b.cantidadAfectada || b.cantidad || 1);
+    return kb - ka;
+  });
+}
+
+// Detect rows/columns of same-pieza instances with a sobrante at the END of
+// the line that spans the perpendicular range of the row/column. Each
+// instance can grow by `sobrante / K`, with subsequent instances shifting
+// down/right to keep kerfs intact.
+function detectarFilasYColumnas(resultado, proyecto, kerf) {
+  const TOL = 2;
+  const piezaPorId = new Map(proyecto.piezas.map(p => [p.id, p]));
+  const out = [];
+  for (const placa of resultado.placas) {
+    // Rows: same piezaId, same y, same alto, in horizontal sequence
+    const rowsByKey = new Map();
+    for (const c of placa.colocaciones) {
+      const key = c.piezaId + '|' + c.y + '|' + c.alto;
+      if (!rowsByKey.has(key)) rowsByKey.set(key, []);
+      rowsByKey.get(key).push(c);
+    }
+    for (const fila of rowsByKey.values()) {
+      if (fila.length < 2) continue;
+      fila.sort((a, b) => a.x - b.x);
+      const ult = fila[fila.length - 1];
+      const ux2 = ult.x + ult.ancho;
+      for (const s of placa.sobrantes || []) {
+        if (Math.abs(s.x - (ux2 + kerf)) <= TOL &&
+            Math.abs(s.y - ult.y) <= TOL &&
+            Math.abs((s.y + s.alto) - (ult.y + ult.alto)) <= TOL) {
+          const N = fila.length;
+          const ext = s.ancho / N;
+          if (ext < 20) break;
+          const pieza = piezaPorId.get(fila[0].piezaId);
+          if (!pieza) break;
+          // Layout x grows; map through rotation
+          const eje = fila[0].rotada ? 'alto' : 'ancho';
+          const valorActual = pieza[eje];
+          out.push({
+            type: 'fila',
+            orientacion: 'horizontal',
+            piezaId: pieza.id, piezaNombre: pieza.nombre,
+            eje, valorActual,
+            extension: Math.floor(ext * 10) / 10,
+            valorNuevo: Math.floor((valorActual + ext) * 10) / 10,
+            cantidadAfectada: N,
+            cantidadTotal: pieza.cantidad,
+            colocaciones: [...fila],
+            sobrante: s,
+            placa,
+            kerf,
+          });
+          break;
+        }
+      }
+    }
+    // Columns: same piezaId, same x, same ancho, in vertical sequence
+    const colsByKey = new Map();
+    for (const c of placa.colocaciones) {
+      const key = c.piezaId + '|' + c.x + '|' + c.ancho;
+      if (!colsByKey.has(key)) colsByKey.set(key, []);
+      colsByKey.get(key).push(c);
+    }
+    for (const col of colsByKey.values()) {
+      if (col.length < 2) continue;
+      col.sort((a, b) => a.y - b.y);
+      const ult = col[col.length - 1];
+      const uy2 = ult.y + ult.alto;
+      for (const s of placa.sobrantes || []) {
+        if (Math.abs(s.y - (uy2 + kerf)) <= TOL &&
+            Math.abs(s.x - ult.x) <= TOL &&
+            Math.abs((s.x + s.ancho) - (ult.x + ult.ancho)) <= TOL) {
+          const N = col.length;
+          const ext = s.alto / N;
+          if (ext < 20) break;
+          const pieza = piezaPorId.get(col[0].piezaId);
+          if (!pieza) break;
+          const eje = col[0].rotada ? 'ancho' : 'alto';
+          const valorActual = pieza[eje];
+          out.push({
+            type: 'fila',
+            orientacion: 'vertical',
+            piezaId: pieza.id, piezaNombre: pieza.nombre,
+            eje, valorActual,
+            extension: Math.floor(ext * 10) / 10,
+            valorNuevo: Math.floor((valorActual + ext) * 10) / 10,
+            cantidadAfectada: N,
+            cantidadTotal: pieza.cantidad,
+            colocaciones: [...col],
+            sobrante: s,
+            placa,
+            kerf,
+          });
+          break;
+        }
+      }
+    }
+  }
+  return out;
 }
 
 function renderSugerencias(sugerencias, proyecto, callbacks) {
@@ -581,11 +686,16 @@ function renderSugerencias(sugerencias, proyecto, callbacks) {
       texto = `<strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
         extender <em>${s.eje}</em> de <strong>${s.valorActual}</strong> a <strong>${s.valorNuevo}</strong> mm
         (+${s.extension} mm${s.cantidad > 1 ? `, afecta ${s.cantidad} copias` : ''})`;
-    } else { // variante
+    } else if (s.type === 'variante') {
       texto = `<strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
         <strong>${s.cantidadAfectada} de ${s.cantidadTotal}</strong> copias pueden extender
         <em>${s.eje}</em> a <strong>${s.valorNuevo}</strong> mm (+${s.extension} mm).
         <span class="sug-nota">Se crea una variante separada con el nuevo tamaño.</span>`;
+    } else { // 'fila'
+      const desc = `${s.cantidadAfectada} copias en ${s.orientacion === 'horizontal' ? 'fila' : 'columna'}`;
+      texto = `<strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
+        ${desc} pueden crecer <em>${s.eje}</em> a <strong>${s.valorNuevo}</strong> mm cada una (+${s.extension} mm).
+        <span class="sug-nota">Aprovechando sobrante de ${Math.round(s.sobrante.ancho)}×${Math.round(s.sobrante.alto)} mm. ${s.cantidadAfectada < s.cantidadTotal ? 'Se crea variante.' : ''}</span>`;
     }
     li.innerHTML = `<span class="sug-texto">${texto}</span><button class="sug-aplicar primary">Aplicar</button>`;
     li.querySelector('.sug-aplicar').onclick = () => {
@@ -593,6 +703,8 @@ function renderSugerencias(sugerencias, proyecto, callbacks) {
         callbacks.onAplicarSugerencia(s.piezaId, s.eje, s.valorNuevo);
       } else if (s.type === 'variante' && callbacks.onCrearVariante) {
         callbacks.onCrearVariante(s);
+      } else if (s.type === 'fila' && callbacks.onAplicarFila) {
+        callbacks.onAplicarFila(s);
       }
     };
     ul.appendChild(li);
