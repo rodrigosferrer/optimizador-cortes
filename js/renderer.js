@@ -29,6 +29,9 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
   const resumen = document.createElement('div');
   resumen.className = 'resumen';
   const metrosCanto = calcularMetrosCanto(resultado);
+  const precioCanto = (proyecto && proyecto.config && proyecto.config.precioCantoPorMetro) || 0;
+  const costoCantoTotal = metrosCanto * precioCanto;
+  const costoDesperdicio = m.costoTotal * m.desperdicio;
   resumen.innerHTML = `
     <div>Placas usadas: <strong>${m.placasUsadas}</strong>${
       cota > 0
@@ -37,25 +40,20 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     }</div>
     <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong>${tip('Porcentaje del área de las placas usado por piezas (vs. desperdicio).')}</div>
     <div>Desperdicio: <strong>${(m.desperdicio * 100).toFixed(1)}%</strong></div>
-    ${metrosCanto > 0 ? `<div>Canto: <strong>${metrosCanto.toFixed(2)} m</strong>${tip('Metros lineales totales de tapacanto necesarios, sumando los bordes marcados de todas las piezas.')}</div>` : ''}
-    ${m.costoTotal > 0 ? `<div>Costo total: <strong>${formatearMoneda(m.costoTotal)}</strong>${tip('Suma de los precios de las placas usadas (incluye placas faltantes a comprar).')}</div>` : ''}
+    ${metrosCanto > 0 ? `<div>Canto: <strong>${metrosCanto.toFixed(2)} m</strong>${costoCantoTotal > 0 ? ` (${formatearMoneda(costoCantoTotal)})` : ''}${tip('Metros lineales totales de tapacanto necesarios, sumando los bordes marcados de todas las piezas.')}</div>` : ''}
+    ${m.costoTotal > 0 ? `<div>Costo placas: <strong>${formatearMoneda(m.costoTotal)}</strong>${tip('Suma de los precios de las placas usadas (incluye placas faltantes a comprar).')}</div>` : ''}
+    ${costoDesperdicio > 0 ? `<div>Costo desperdicio: <strong>${formatearMoneda(costoDesperdicio)}</strong>${tip('Costo del material desperdiciado: porcentaje de desperdicio × costo total de las placas.')}</div>` : ''}
+    ${(m.costoTotal + costoCantoTotal) > 0 ? `<div class="costo-final">Total proyecto: <strong>${formatearMoneda(m.costoTotal + costoCantoTotal)}</strong>${tip('Suma de placas + canto.')}</div>` : ''}
     ${m.placasFaltantes > 0 ? `<div class="warn">⚠ Faltan ${m.placasFaltantes} placa(s) en stock</div>` : ''}
   `;
   container.appendChild(resumen);
 
-  // Per-mueble cost breakdown (only if prices were set)
-  if (m.costoTotal > 0 && proyecto && proyecto.grupos && proyecto.grupos.length > 0) {
-    const desglose = costoPorMueble(resultado, proyecto);
+  // Per-mueble detail breakdown
+  if (proyecto && proyecto.grupos && proyecto.grupos.length > 0) {
+    const precioCanto = (proyecto.config && proyecto.config.precioCantoPorMetro) || 0;
+    const desglose = desgloseMuebles(resultado, proyecto, precioCanto);
     if (desglose.size > 0) {
-      const div = document.createElement('div');
-      div.className = 'costo-desglose';
-      div.innerHTML = '<h4>Costo por mueble</h4>' +
-        '<ul>' +
-          [...desglose.entries()].map(([nombre, costo]) =>
-            `<li><span>${escapeHtml(nombre)}</span><strong>${formatearMoneda(costo)}</strong></li>`
-          ).join('') +
-        '</ul>';
-      container.appendChild(div);
+      container.appendChild(renderDesglose(desglose, m, precioCanto));
     }
   }
 
@@ -445,28 +443,125 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Distribute each plate's price among muebles based on the area each mueble
-// occupies on that plate. Returns Map<grupoNombre, costo>.
-function costoPorMueble(resultado, proyecto) {
+// Detailed per-mueble breakdown: piezas count, total area (m²), edge band
+// length (m), plate cost share (area-weighted), edge band cost.
+// Returns Map<grupoNombre, { piezas, area_m2, canto_m, costoPlaca, costoCanto }>
+function desgloseMuebles(resultado, proyecto, precioCantoPorMetro) {
   const grupoIdPorPieza = new Map(proyecto.piezas.map(p => [p.id, p.grupoId]));
   const nombrePorGrupo = new Map(proyecto.grupos.map(g => [g.id, g.nombre]));
-  const costoPorNombre = new Map();
+  const data = new Map();
+  const ensure = nombre => {
+    if (!data.has(nombre)) data.set(nombre, { piezas: 0, area_mm2: 0, canto_mm: 0, costoPlaca: 0, costoCanto: 0 });
+    return data.get(nombre);
+  };
+
   for (const placa of resultado.placas) {
-    if (!placa.precio || placa.colocaciones.length === 0) continue;
     const areaPlaca = placa.ancho * placa.alto;
+    const precio = placa.precio || 0;
+    // First pass: area used per grupo on this plate, for cost distribution.
     const areaPorGrupo = new Map();
     for (const c of placa.colocaciones) {
       const grupoId = grupoIdPorPieza.get(c.piezaId);
-      const area = c.ancho * c.alto;
-      areaPorGrupo.set(grupoId, (areaPorGrupo.get(grupoId) || 0) + area);
-    }
-    for (const [grupoId, area] of areaPorGrupo) {
       const nombre = nombrePorGrupo.get(grupoId) || 'Sin grupo';
-      const share = area / areaPlaca;
-      costoPorNombre.set(nombre, (costoPorNombre.get(nombre) || 0) + share * placa.precio);
+      const area = c.ancho * c.alto;
+      areaPorGrupo.set(nombre, (areaPorGrupo.get(nombre) || 0) + area);
+    }
+    for (const [nombre, area] of areaPorGrupo) {
+      const share = areaPlaca > 0 ? area / areaPlaca : 0;
+      ensure(nombre).costoPlaca += share * precio;
+    }
+    // Per-piece counts, area and canto length
+    for (const c of placa.colocaciones) {
+      const grupoId = grupoIdPorPieza.get(c.piezaId);
+      const nombre = nombrePorGrupo.get(grupoId) || 'Sin grupo';
+      const d = ensure(nombre);
+      d.piezas += 1;
+      d.area_mm2 += c.ancho * c.alto;
+      if (c.cantos) {
+        const ladoSupInf = c.rotada ? c.alto : c.ancho;
+        const ladoIzqDer = c.rotada ? c.ancho : c.alto;
+        if (c.cantos.sup) d.canto_mm += ladoSupInf;
+        if (c.cantos.inf) d.canto_mm += ladoSupInf;
+        if (c.cantos.izq) d.canto_mm += ladoIzqDer;
+        if (c.cantos.der) d.canto_mm += ladoIzqDer;
+      }
     }
   }
-  return costoPorNombre;
+  // Convert and compute canto cost
+  for (const d of data.values()) {
+    d.area_m2 = d.area_mm2 / 1e6;
+    d.canto_m = d.canto_mm / 1000;
+    d.costoCanto = d.canto_m * precioCantoPorMetro;
+    d.costoTotal = d.costoPlaca + d.costoCanto;
+  }
+  return data;
+}
+
+function renderDesglose(desglose, metricas, precioCanto) {
+  const div = document.createElement('div');
+  div.className = 'desglose-muebles';
+  const muestraCostoCanto = precioCanto > 0;
+  const muestraCostoPlaca = metricas.costoTotal > 0;
+  const costoDesperdicio = metricas.costoTotal * metricas.desperdicio;
+
+  const filas = [...desglose.entries()].map(([nombre, d]) => `
+    <tr>
+      <td>${escapeHtml(nombre)}</td>
+      <td style="text-align:right">${d.piezas}</td>
+      <td style="text-align:right">${d.area_m2.toFixed(2)} m²</td>
+      <td style="text-align:right">${d.canto_m.toFixed(2)} m</td>
+      ${muestraCostoPlaca ? `<td style="text-align:right">${formatearMoneda(d.costoPlaca)}</td>` : ''}
+      ${muestraCostoCanto ? `<td style="text-align:right">${formatearMoneda(d.costoCanto)}</td>` : ''}
+      ${(muestraCostoPlaca || muestraCostoCanto) ? `<td style="text-align:right"><strong>${formatearMoneda(d.costoTotal)}</strong></td>` : ''}
+    </tr>
+  `).join('');
+
+  const totales = [...desglose.values()].reduce((s, d) => ({
+    piezas: s.piezas + d.piezas,
+    area: s.area + d.area_m2,
+    canto: s.canto + d.canto_m,
+    costoPlaca: s.costoPlaca + d.costoPlaca,
+    costoCanto: s.costoCanto + d.costoCanto,
+    costoTotal: s.costoTotal + d.costoTotal,
+  }), {piezas:0,area:0,canto:0,costoPlaca:0,costoCanto:0,costoTotal:0});
+
+  div.innerHTML = `
+    <h4>Detalle por mueble</h4>
+    <table class="tabla-detalle">
+      <thead>
+        <tr>
+          <th>Mueble</th>
+          <th style="text-align:right">Piezas</th>
+          <th style="text-align:right">Área</th>
+          <th style="text-align:right">Canto</th>
+          ${muestraCostoPlaca ? '<th style="text-align:right">Costo placa</th>' : ''}
+          ${muestraCostoCanto ? '<th style="text-align:right">Costo canto</th>' : ''}
+          ${(muestraCostoPlaca || muestraCostoCanto) ? '<th style="text-align:right">Total</th>' : ''}
+        </tr>
+      </thead>
+      <tbody>${filas}</tbody>
+      <tfoot>
+        <tr>
+          <td><strong>Total (${desglose.size} mueble${desglose.size === 1 ? '' : 's'})</strong></td>
+          <td style="text-align:right"><strong>${totales.piezas}</strong></td>
+          <td style="text-align:right"><strong>${totales.area.toFixed(2)} m²</strong></td>
+          <td style="text-align:right"><strong>${totales.canto.toFixed(2)} m</strong></td>
+          ${muestraCostoPlaca ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoPlaca)}</strong></td>` : ''}
+          ${muestraCostoCanto ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoCanto)}</strong></td>` : ''}
+          ${(muestraCostoPlaca || muestraCostoCanto) ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoTotal)}</strong></td>` : ''}
+        </tr>
+        ${muestraCostoPlaca && costoDesperdicio > 0 ? `
+          <tr class="fila-desperdicio">
+            <td colspan="${4 + (muestraCostoPlaca ? 1 : 0) + (muestraCostoCanto ? 1 : 0)}" style="text-align:right">
+              Costo desperdicio (${(metricas.desperdicio * 100).toFixed(1)}% de las placas):
+            </td>
+            <td style="text-align:right"><strong>${formatearMoneda(costoDesperdicio)}</strong></td>
+          </tr>
+        ` : ''}
+      </tfoot>
+    </table>
+  `;
+  return div;
 }
 
 // Total linear meters of edge banding needed. For each placed piece, sum the
