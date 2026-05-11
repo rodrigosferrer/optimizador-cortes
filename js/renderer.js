@@ -5,8 +5,9 @@ import { tip } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-export function render(container, resultado, kerf = 0, proyecto = null) {
+export function render(container, resultado, kerf = 0, proyecto = null, callbacks = {}) {
   container.innerHTML = '';
+  cerrarPopoverPieza();
 
   // Build piezaId → "Mueble - Pieza" name map
   const nombrePorPiezaId = construirMapaNombres(proyecto);
@@ -51,6 +52,14 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     ${m.placasFaltantes > 0 ? `<div class="warn">⚠ Faltan ${m.placasFaltantes} placa(s) en stock</div>` : ''}
   `;
   container.appendChild(resumen);
+
+  // Suggestions: which pieces could grow to absorb adjacent sobrante
+  if (proyecto && callbacks.onAplicarSugerencia) {
+    const sugerencias = analizarSugerencias(resultado, proyecto, kerf);
+    if (sugerencias.length > 0) {
+      container.appendChild(renderSugerencias(sugerencias, proyecto, callbacks));
+    }
+  }
 
   // Per-mueble detail breakdown
   if (proyecto && proyecto.grupos && proyecto.grupos.length > 0) {
@@ -136,6 +145,9 @@ function dibujarPlaca(placa, cortes = [], nombrePorPiezaId = null) {
 
   placa.colocaciones.forEach((c, idx) => {
     const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'pieza-grupo');
+    g.dataset.piezaId = c.piezaId;
+    g.style.cursor = 'pointer';
 
     const rect = document.createElementNS(SVG_NS, 'rect');
     rect.setAttribute('x', c.x); rect.setAttribute('y', c.y);
@@ -153,6 +165,11 @@ function dibujarPlaca(placa, cortes = [], nombrePorPiezaId = null) {
 
     const nombreCompleto = (nombrePorPiezaId && nombrePorPiezaId.get(c.piezaId)) || c.nombre;
     g.appendChild(etiquetaPieza(c, idx + 1, nombreCompleto));
+
+    g.addEventListener('click', (e) => {
+      e.stopPropagation();
+      mostrarPopoverPieza(c, e.clientX, e.clientY);
+    });
 
     svg.appendChild(g);
   });
@@ -445,6 +462,195 @@ function colorPara(nombre) {
 
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// =========================================================================
+// Suggestions (Level 1): detect pieces that could grow into adjacent sobrante
+// =========================================================================
+
+// For each placed piece, look for sobrantes adjacent to its right/bottom edges
+// that fully cover its perpendicular range. If found, suggest extending the
+// piece by the sobrante's parallel dimension. Returns one suggestion per
+// (piezaId, eje) keeping the largest extension.
+function analizarSugerencias(resultado, proyecto, kerf) {
+  const TOL = 2;
+  const sugerencias = [];
+  const piezaPorId = new Map(proyecto.piezas.map(p => [p.id, p]));
+  for (const placa of resultado.placas) {
+    for (const c of placa.colocaciones) {
+      const pieza = piezaPorId.get(c.piezaId);
+      if (!pieza) continue;
+      const cx2 = c.x + c.ancho;
+      const cy2 = c.y + c.alto;
+      for (const s of placa.sobrantes || []) {
+        // Right neighbor: sobrante starts just after the piece + kerf, covers piece's y span
+        if (Math.abs(s.x - (cx2 + kerf)) <= TOL &&
+            s.y <= c.y + TOL &&
+            (s.y + s.alto) >= cy2 - TOL) {
+          const eje = c.rotada ? 'alto' : 'ancho';
+          const valorActual = pieza[eje];
+          sugerencias.push({
+            piezaId: pieza.id,
+            piezaNombre: pieza.nombre,
+            eje,
+            valorActual,
+            extension: Math.floor(s.ancho),
+            valorNuevo: valorActual + Math.floor(s.ancho),
+            direccion: 'derecha',
+            cantidad: pieza.cantidad,
+          });
+        }
+        // Bottom neighbor
+        if (Math.abs(s.y - (cy2 + kerf)) <= TOL &&
+            s.x <= c.x + TOL &&
+            (s.x + s.ancho) >= cx2 - TOL) {
+          const eje = c.rotada ? 'ancho' : 'alto';
+          const valorActual = pieza[eje];
+          sugerencias.push({
+            piezaId: pieza.id,
+            piezaNombre: pieza.nombre,
+            eje,
+            valorActual,
+            extension: Math.floor(s.alto),
+            valorNuevo: valorActual + Math.floor(s.alto),
+            direccion: 'abajo',
+            cantidad: pieza.cantidad,
+          });
+        }
+      }
+    }
+  }
+  // Deduplicate by piezaId+eje, keep the largest extension
+  const dedup = new Map();
+  for (const s of sugerencias) {
+    const k = s.piezaId + ':' + s.eje;
+    if (!dedup.has(k) || dedup.get(k).extension < s.extension) dedup.set(k, s);
+  }
+  // Filter trivially small extensions (<20 mm) — not worth surfacing
+  return [...dedup.values()].filter(s => s.extension >= 20)
+    .sort((a, b) => b.extension - a.extension);
+}
+
+function renderSugerencias(sugerencias, proyecto, callbacks) {
+  const div = document.createElement('div');
+  div.className = 'sugerencias';
+  const nombrePorGrupo = new Map(proyecto.grupos.map(g => [g.id, g.nombre]));
+  const piezaPorId = new Map(proyecto.piezas.map(p => [p.id, p]));
+  div.innerHTML = `<h4>💡 Sugerencias de aprovechamiento (${sugerencias.length})</h4><ul class="sugerencias-lista"></ul>`;
+  const ul = div.querySelector('ul');
+  for (const s of sugerencias) {
+    const pieza = piezaPorId.get(s.piezaId);
+    const grupo = pieza ? (nombrePorGrupo.get(pieza.grupoId) || '') : '';
+    const li = document.createElement('li');
+    li.className = 'sugerencia-item';
+    li.innerHTML = `
+      <span class="sug-texto">
+        <strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
+        extender <em>${s.eje}</em> de <strong>${s.valorActual}</strong> a <strong>${s.valorNuevo}</strong> mm
+        (+${s.extension} mm hacia la ${s.direccion}${s.cantidad > 1 ? `, afecta ${s.cantidad} copias` : ''})
+      </span>
+      <button class="sug-aplicar primary">Aplicar</button>
+    `;
+    li.querySelector('.sug-aplicar').onclick = () => {
+      callbacks.onAplicarSugerencia(s.piezaId, s.eje, s.valorNuevo);
+    };
+    ul.appendChild(li);
+  }
+  return div;
+}
+
+// =========================================================================
+// Click-on-piece popover (Level 2)
+// =========================================================================
+
+let _popoverEl = null;
+let _popoverCallbacks = null;
+
+function setPopoverCallbacks(callbacks, proyecto) {
+  _popoverCallbacks = { callbacks, proyecto };
+}
+
+function cerrarPopoverPieza() {
+  if (_popoverEl) {
+    _popoverEl.remove();
+    _popoverEl = null;
+  }
+}
+
+function mostrarPopoverPieza(colocacion, clickX, clickY) {
+  cerrarPopoverPieza();
+  if (!_popoverCallbacks) return;
+  const { callbacks, proyecto } = _popoverCallbacks;
+  const pieza = proyecto.piezas.find(p => p.id === colocacion.piezaId);
+  if (!pieza) return;
+
+  const grupo = proyecto.grupos.find(g => g.id === pieza.grupoId);
+  const grupoNombre = grupo ? grupo.nombre : 'Sin grupo';
+
+  const div = document.createElement('div');
+  div.className = 'popover-pieza';
+  div.innerHTML = `
+    <div class="popover-header">
+      <strong>${escapeHtml(grupoNombre)} · ${escapeHtml(pieza.nombre)}</strong>
+      <button class="popover-cerrar" title="Cerrar">✕</button>
+    </div>
+    <div class="popover-body">
+      <label>Ancho (mm) <input type="number" min="1" data-k="ancho" value="${pieza.ancho}"></label>
+      <label>Alto (mm) <input type="number" min="1" data-k="alto" value="${pieza.alto}"></label>
+      <label>Cantidad <input type="number" min="1" data-k="cantidad" value="${pieza.cantidad}"></label>
+      ${pieza.cantidad > 1 ? '<p class="popover-warn">⚠ Esta pieza tiene varias copias. El cambio afecta a todas.</p>' : ''}
+      <div class="popover-acciones">
+        <button class="popover-aplicar primary">Aplicar</button>
+        <button class="popover-cancelar">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+
+  // Position near click, keep within viewport
+  const w = 280, h = 220;
+  let x = clickX + 12, y = clickY + 12;
+  if (x + w > window.innerWidth - 10) x = window.innerWidth - w - 10;
+  if (y + h > window.innerHeight - 10) y = clickY - h - 12;
+  if (y < 10) y = 10;
+  div.style.left = x + 'px';
+  div.style.top = y + 'px';
+
+  const inputs = {};
+  div.querySelectorAll('input').forEach(i => { inputs[i.dataset.k] = i; });
+  div.querySelector('.popover-cerrar').onclick = cerrarPopoverPieza;
+  div.querySelector('.popover-cancelar').onclick = cerrarPopoverPieza;
+  div.querySelector('.popover-aplicar').onclick = () => {
+    const cambios = {
+      ancho: Number(inputs.ancho.value) || pieza.ancho,
+      alto: Number(inputs.alto.value) || pieza.alto,
+      cantidad: Number(inputs.cantidad.value) || pieza.cantidad,
+    };
+    cerrarPopoverPieza();
+    if (callbacks.onEditarPieza) callbacks.onEditarPieza(pieza.id, cambios);
+  };
+  // Esc to close
+  const onKey = (e) => {
+    if (e.key === 'Escape') { cerrarPopoverPieza(); document.removeEventListener('keydown', onKey); }
+  };
+  document.addEventListener('keydown', onKey);
+  _popoverEl = div;
+  inputs.ancho.focus();
+  inputs.ancho.select();
+}
+
+// Click outside the popover closes it. Guard for non-DOM environments (Node).
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    if (_popoverEl && !_popoverEl.contains(e.target) && !e.target.closest('.pieza-grupo')) {
+      cerrarPopoverPieza();
+    }
+  });
+}
+
+// Exported so app.js can register callbacks before render() runs.
+export function registrarCallbacksRender(callbacks, proyecto) {
+  setPopoverCallbacks(callbacks, proyecto);
 }
 
 // Detailed per-mueble breakdown: piezas count, total area (m²), edge band

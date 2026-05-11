@@ -3,7 +3,7 @@ import * as uiConfig from './ui-config.js';
 import * as uiPiezas from './ui-piezas.js';
 import { parsearCSV, serializarCSV } from './csv.js';
 import { optimizar, optimizarMejorVariante } from './optimizer.js';
-import { render as renderResultado } from './renderer.js';
+import { render as renderResultado, registrarCallbacksRender } from './renderer.js';
 import { icon } from './icons.js';
 
 let proyecto = cargar();
@@ -106,13 +106,38 @@ function montarBotones() {
     descargar(blob, (proyecto.nombre || 'piezas') + '.csv');
   };
 
+  const renderConCallbacks = (r) => {
+    const callbacks = {
+      onAplicarSugerencia: (piezaId, eje, valorNuevo) => {
+        const pieza = proyecto.piezas.find(p => p.id === piezaId);
+        if (!pieza) return;
+        pieza[eje] = valorNuevo;
+        onChange();
+        uiPiezas.rerender(proyecto, onChange);
+        const r2 = optimizar(proyecto);
+        renderConCallbacks(r2);
+      },
+      onEditarPieza: (piezaId, cambios) => {
+        const pieza = proyecto.piezas.find(p => p.id === piezaId);
+        if (!pieza) return;
+        Object.assign(pieza, cambios);
+        onChange();
+        uiPiezas.rerender(proyecto, onChange);
+        const r2 = optimizar(proyecto);
+        renderConCallbacks(r2);
+      },
+    };
+    registrarCallbacksRender(callbacks, proyecto);
+    renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0, proyecto, callbacks);
+  };
+
   document.getElementById('btn-calcular').onclick = () => {
     if (proyecto.piezas.length === 0) {
       alert('Agregá al menos una pieza antes de calcular.');
       return;
     }
     const r = optimizar(proyecto);
-    renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0, proyecto);
+    renderConCallbacks(r);
   };
 
   document.getElementById('btn-buscar-variante').onclick = async () => {
@@ -132,7 +157,7 @@ function montarBotones() {
       const r = await optimizarMejorVariante(proyecto, N, (i, n, best) => {
         progreso.textContent = `Variante ${i}/${n} · mejor: ${best.metricas.placasUsadas} placa${best.metricas.placasUsadas === 1 ? '' : 's'}, ${(best.metricas.aprovechamiento*100).toFixed(1)}%`;
       });
-      renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0, proyecto);
+      renderConCallbacks(r);
       progreso.textContent = `✓ Mejor de ${N} variantes`;
       setTimeout(() => { progreso.hidden = true; }, 3000);
     } finally {
