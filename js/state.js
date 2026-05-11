@@ -7,7 +7,7 @@ export function proyectoVacio() {
     grupos: [grupoInicial],
     piezas: [],
     placas: [{ ancho: 2600, alto: 1830, cantidad: 10, vetaHorizontal: true, precio: 0 }],
-    config: { kerf: 3, margenPlaca: 0, estrategiaPlaca: 'chica-primero', precioCantoPorMetro: 0 },
+    config: { kerf: 3, margenPlaca: 0, estrategiaPlaca: 'chica-primero', precioCantoPorMetro: 0, precioPorCorte: 0 },
   };
 }
 

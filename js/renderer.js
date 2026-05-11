@@ -36,6 +36,8 @@ export function render(container, resultado, kerf = 0, proyecto = null, callback
   // Compute the cut plan for each plate once, reuse below.
   const cortesPorPlaca = resultado.placas.map(p => planCortes(p, kerf));
   const cortesTotal = cortesPorPlaca.reduce((s, arr) => s + arr.length, 0);
+  const precioPorCorte = (proyecto && proyecto.config && proyecto.config.precioPorCorte) || 0;
+  const costoCortesTotal = cortesTotal * precioPorCorte;
   resumen.innerHTML = `
     <div>Placas usadas: <strong>${m.placasUsadas}</strong>${
       cota > 0
@@ -44,11 +46,11 @@ export function render(container, resultado, kerf = 0, proyecto = null, callback
     }</div>
     <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong>${tip('Porcentaje del área de las placas usado por piezas (vs. desperdicio).')}</div>
     <div>Desperdicio: <strong>${(m.desperdicio * 100).toFixed(1)}%</strong></div>
-    <div>Cortes totales: <strong>${cortesTotal}</strong>${tip('Cantidad total de cortes guillotine en todas las placas.')}</div>
+    <div>Cortes totales: <strong>${cortesTotal}</strong>${costoCortesTotal > 0 ? ` (${formatearMoneda(costoCortesTotal)})` : ''}${tip('Cantidad total de cortes guillotine en todas las placas.')}</div>
     ${metrosCanto > 0 ? `<div>Canto: <strong>${metrosCanto.toFixed(2)} m</strong>${costoCantoTotal > 0 ? ` (${formatearMoneda(costoCantoTotal)})` : ''}${tip('Metros lineales totales de tapacanto necesarios, sumando los bordes marcados de todas las piezas.')}</div>` : ''}
     ${m.costoTotal > 0 ? `<div>Costo placas: <strong>${formatearMoneda(m.costoTotal)}</strong>${tip('Suma de los precios de las placas usadas (incluye placas faltantes a comprar).')}</div>` : ''}
     ${costoDesperdicio > 0 ? `<div>Costo desperdicio: <strong>${formatearMoneda(costoDesperdicio)}</strong>${tip('Costo del material desperdiciado: porcentaje de desperdicio × costo total de las placas.')}</div>` : ''}
-    ${(m.costoTotal + costoCantoTotal) > 0 ? `<div class="costo-final">Total proyecto: <strong>${formatearMoneda(m.costoTotal + costoCantoTotal)}</strong>${tip('Suma de placas + canto.')}</div>` : ''}
+    ${(m.costoTotal + costoCantoTotal + costoCortesTotal) > 0 ? `<div class="costo-final">Total proyecto: <strong>${formatearMoneda(m.costoTotal + costoCantoTotal + costoCortesTotal)}</strong>${tip('Suma de placas + canto + cortes.')}</div>` : ''}
     ${m.placasFaltantes > 0 ? `<div class="warn">⚠ Faltan ${m.placasFaltantes} placa(s) en stock</div>` : ''}
   `;
   container.appendChild(resumen);

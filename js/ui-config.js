@@ -13,10 +13,12 @@ export function montar(proyecto, onChange) {
   const margenInput = document.getElementById('cfg-margen');
   const estrategiaSel = document.getElementById('cfg-estrategia');
   const precioCantoInput = document.getElementById('cfg-precio-canto');
+  const precioCorteInput = document.getElementById('cfg-precio-corte');
   kerfInput.value = cfg.kerf;
   margenInput.value = cfg.margenPlaca;
   if (estrategiaSel) estrategiaSel.value = cfg.estrategiaPlaca;
   if (precioCantoInput) precioCantoInput.value = cfg.precioCantoPorMetro || 0;
+  if (precioCorteInput) precioCorteInput.value = cfg.precioPorCorte || 0;
 
   kerfInput.oninput = () => { cfg.kerf = Number(kerfInput.value) || 0; onChange(); };
   margenInput.oninput = () => { cfg.margenPlaca = Number(margenInput.value) || 0; onChange(); };
@@ -25,6 +27,9 @@ export function montar(proyecto, onChange) {
   }
   if (precioCantoInput) {
     precioCantoInput.oninput = () => { cfg.precioCantoPorMetro = Number(precioCantoInput.value) || 0; onChange(); };
+  }
+  if (precioCorteInput) {
+    precioCorteInput.oninput = () => { cfg.precioPorCorte = Number(precioCorteInput.value) || 0; onChange(); };
   }
 
   renderPlacas(proyecto, onChange);
