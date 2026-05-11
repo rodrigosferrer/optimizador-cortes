@@ -66,9 +66,9 @@ export function render(container, resultado, kerf = 0, proyecto = null, callback
   // Per-mueble detail breakdown
   if (proyecto && proyecto.grupos && proyecto.grupos.length > 0) {
     const precioCanto = (proyecto.config && proyecto.config.precioCantoPorMetro) || 0;
-    const desglose = desgloseMuebles(resultado, proyecto, precioCanto);
+    const desglose = desgloseMuebles(resultado, proyecto, precioCanto, costoCortesTotal);
     if (desglose.size > 0) {
-      container.appendChild(renderDesglose(desglose, m, precioCanto));
+      container.appendChild(renderDesglose(desglose, m, precioCanto, precioPorCorte, costoCortesTotal));
     }
   }
 
@@ -916,7 +916,7 @@ function restarRect(libres, rx, ry, rw, rh) {
 // Detailed per-mueble breakdown: piezas count, total area (m²), edge band
 // length (m), plate cost share (area-weighted), edge band cost.
 // Returns Map<grupoNombre, { piezas, area_m2, canto_m, costoPlaca, costoCanto }>
-function desgloseMuebles(resultado, proyecto, precioCantoPorMetro) {
+function desgloseMuebles(resultado, proyecto, precioCantoPorMetro, costoCortesTotal = 0) {
   const grupoIdPorPieza = new Map(proyecto.piezas.map(p => [p.id, p.grupoId]));
   const nombrePorGrupo = new Map(proyecto.grupos.map(g => [g.id, g.nombre]));
   const data = new Map();
@@ -957,21 +957,25 @@ function desgloseMuebles(resultado, proyecto, precioCantoPorMetro) {
       }
     }
   }
-  // Convert and compute canto cost
+  // Distribute cut cost by PIECE count (cuts scale with piece count, not area).
+  const totalPiezas = [...data.values()].reduce((s, d) => s + d.piezas, 0);
   for (const d of data.values()) {
     d.area_m2 = d.area_mm2 / 1e6;
     d.canto_m = d.canto_mm / 1000;
     d.costoCanto = d.canto_m * precioCantoPorMetro;
-    d.costoTotal = d.costoPlaca + d.costoCanto;
+    d.costoCortes = totalPiezas > 0 ? (d.piezas / totalPiezas) * costoCortesTotal : 0;
+    d.costoTotal = d.costoPlaca + d.costoCanto + d.costoCortes;
   }
   return data;
 }
 
-function renderDesglose(desglose, metricas, precioCanto) {
+function renderDesglose(desglose, metricas, precioCanto, precioCorte, costoCortesTotal) {
   const div = document.createElement('div');
   div.className = 'desglose-muebles';
   const muestraCostoCanto = precioCanto > 0;
   const muestraCostoPlaca = metricas.costoTotal > 0;
+  const muestraCostoCortes = (precioCorte || 0) > 0;
+  const muestraTotal = muestraCostoPlaca || muestraCostoCanto || muestraCostoCortes;
   const costoDesperdicio = metricas.costoTotal * metricas.desperdicio;
 
   const filas = [...desglose.entries()].map(([nombre, d]) => `
@@ -982,7 +986,8 @@ function renderDesglose(desglose, metricas, precioCanto) {
       <td style="text-align:right">${d.canto_m.toFixed(2)} m</td>
       ${muestraCostoPlaca ? `<td style="text-align:right">${formatearMoneda(d.costoPlaca)}</td>` : ''}
       ${muestraCostoCanto ? `<td style="text-align:right">${formatearMoneda(d.costoCanto)}</td>` : ''}
-      ${(muestraCostoPlaca || muestraCostoCanto) ? `<td style="text-align:right"><strong>${formatearMoneda(d.costoTotal)}</strong></td>` : ''}
+      ${muestraCostoCortes ? `<td style="text-align:right">${formatearMoneda(d.costoCortes)}</td>` : ''}
+      ${muestraTotal ? `<td style="text-align:right"><strong>${formatearMoneda(d.costoTotal)}</strong></td>` : ''}
     </tr>
   `).join('');
 
@@ -992,8 +997,9 @@ function renderDesglose(desglose, metricas, precioCanto) {
     canto: s.canto + d.canto_m,
     costoPlaca: s.costoPlaca + d.costoPlaca,
     costoCanto: s.costoCanto + d.costoCanto,
+    costoCortes: s.costoCortes + d.costoCortes,
     costoTotal: s.costoTotal + d.costoTotal,
-  }), {piezas:0,area:0,canto:0,costoPlaca:0,costoCanto:0,costoTotal:0});
+  }), {piezas:0,area:0,canto:0,costoPlaca:0,costoCanto:0,costoCortes:0,costoTotal:0});
 
   div.innerHTML = `
     <h4>Detalle por mueble</h4>
@@ -1006,7 +1012,8 @@ function renderDesglose(desglose, metricas, precioCanto) {
           <th style="text-align:right">Canto</th>
           ${muestraCostoPlaca ? '<th style="text-align:right">Costo placa</th>' : ''}
           ${muestraCostoCanto ? '<th style="text-align:right">Costo canto</th>' : ''}
-          ${(muestraCostoPlaca || muestraCostoCanto) ? '<th style="text-align:right">Total</th>' : ''}
+          ${muestraCostoCortes ? '<th style="text-align:right">Costo cortes</th>' : ''}
+          ${muestraTotal ? '<th style="text-align:right">Total</th>' : ''}
         </tr>
       </thead>
       <tbody>${filas}</tbody>
@@ -1018,11 +1025,12 @@ function renderDesglose(desglose, metricas, precioCanto) {
           <td style="text-align:right"><strong>${totales.canto.toFixed(2)} m</strong></td>
           ${muestraCostoPlaca ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoPlaca)}</strong></td>` : ''}
           ${muestraCostoCanto ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoCanto)}</strong></td>` : ''}
-          ${(muestraCostoPlaca || muestraCostoCanto) ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoTotal)}</strong></td>` : ''}
+          ${muestraCostoCortes ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoCortes)}</strong></td>` : ''}
+          ${muestraTotal ? `<td style="text-align:right"><strong>${formatearMoneda(totales.costoTotal)}</strong></td>` : ''}
         </tr>
         ${muestraCostoPlaca && costoDesperdicio > 0 ? `
           <tr class="fila-desperdicio">
-            <td colspan="${4 + (muestraCostoPlaca ? 1 : 0) + (muestraCostoCanto ? 1 : 0)}" style="text-align:right">
+            <td colspan="${4 + (muestraCostoPlaca ? 1 : 0) + (muestraCostoCanto ? 1 : 0) + (muestraCostoCortes ? 1 : 0)}" style="text-align:right">
               Costo desperdicio (${(metricas.desperdicio * 100).toFixed(1)}% de las placas):
             </td>
             <td style="text-align:right"><strong>${formatearMoneda(costoDesperdicio)}</strong></td>
