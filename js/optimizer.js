@@ -25,18 +25,19 @@ const SA_DEFAULTS = {
   semilla: 0x9e3779b1,
 };
 
-// Run `n` independent optimizations with different SA seeds and return the
-// best. Yields between runs so the UI stays responsive. `onProgress(i, n, best)`
-// is called after each run (optional).
+// Run `n` independent optimizations with RANDOM SA seeds and return the best.
+// Each invocation explores a different set of variants (non-reproducible by
+// design — clicking again gives more chances at a better layout).
+// Yields between runs so the UI stays responsive.
 export async function optimizarMejorVariante(input, n = 20, onProgress = null) {
   let mejor = null;
   let mejorCosto = Infinity;
-  const seedBase = 0x9e3779b1;
   for (let i = 0; i < n; i++) {
     await new Promise(r => setTimeout(r, 0));
+    const semilla = (Math.random() * 0xffffffff) >>> 0;
     const config = {
       ...input.config,
-      sa: { ...(input.config?.sa || {}), semilla: (seedBase + i * 31337) >>> 0 },
+      sa: { ...(input.config?.sa || {}), semilla },
     };
     const r = optimizar({ ...input, config });
     const c = r.metricas.placasUsadas * 1e9 + r.metricas.desperdicio * 1e6;
