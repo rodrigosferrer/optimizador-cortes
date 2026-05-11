@@ -19,10 +19,10 @@ python -m http.server 8000
 
 ## Flujo de trabajo
 
-1. **Configurar placas stock**: ancho, alto, cantidad y dirección de veta de cada tipo de placa.
-2. **Configurar globales**: kerf (espesor de la sierra), margen (mm de borde dañado a descontar) y estrategia de selección de placa.
-3. **Crear muebles** y cargar piezas en cada uno. Cada pieza tiene nombre, dimensiones, cantidad y dirección de veta.
-4. **Calcular cortes** → SVG con layout por placa, plan de cortes numerado, métricas de aprovechamiento, sobrantes etiquetados.
+1. **Configurar placas stock**: ancho, alto, cantidad, dirección de veta, **precio** y opcionalmente material/espesor.
+2. **Configurar globales**: kerf (espesor de la sierra), margen (mm de borde dañado a descontar), estrategia de selección de placa, **precio del tapacanto por metro** y **precio por corte**.
+3. **Crear muebles** y cargar piezas en cada uno. Cada pieza tiene nombre, dimensiones, cantidad, dirección de veta, qué lados llevan canto (sup/inf/izq/der) y un flag opcional "acepta ajuste" para que el optimizador sugiera variantes.
+4. **Calcular cortes** → SVG con layout por placa, plan de cortes numerado, métricas de aprovechamiento, sobrantes etiquetados, **desglose de costo por mueble** (placa + canto + cortes) y **sugerencias** de extensión de piezas para reducir cortes.
 5. **Imprimir / Exportar PDF** con Ctrl+P. La primera página es una tabla resumen con todas las piezas por mueble; las siguientes son una placa por hoja con su layout y plan de cortes.
 
 ## Conceptos
@@ -34,6 +34,8 @@ python -m http.server 8000
 | **Veta de placa** | Horizontal (a lo largo del ancho) o vertical (a lo largo del alto). |
 | **Kerf** | Ancho del corte de la sierra (típico 3 mm). Se descuenta entre piezas. |
 | **Margen** | mm que se descuentan del borde de cada placa. |
+| **Cantos** | Por pieza marcás qué lados llevan tapacanto (sup/inf/izq/der). Se usa para el costeo y se respeta al rotar. |
+| **Acepta ajuste** | Flag por pieza: si está activo, el optimizador puede proponer ampliarla un poco para aprovechar sobrantes adyacentes y eliminar cortes. La aplicación de la sugerencia es manual. |
 | **Cota teórica** | Mínimo absoluto de placas según área total y stock disponible. No siempre alcanzable con guillotine. |
 | **Sobrante** | Pedazo de placa sin usar. Si es grande, podés guardarlo para futuros proyectos. |
 
@@ -46,13 +48,38 @@ Cuando tenés varios tipos de placa en stock, el optimizador puede elegir cuál 
 - **Orden manual**: respeta el orden de la lista de placas.
 - **Agotar stock**: pre-abre una placa de cada tipo con stock real antes de pedir placas virtuales (faltantes). Útil para no comprar material si tenés stock guardado.
 
+## Costos y desglose por mueble
+
+Si cargás `precio` en las placas, `precioCantoPorMetro` y `precioPorCorte` en la configuración global, después de calcular vas a ver un desglose por mueble con:
+
+- **Costo de placa**: cada placa se reparte entre muebles **proporcional al área** que cada uno ocupa en esa placa.
+- **Costo de canto**: suma de los lados con canto activado de cada pieza × `precioCantoPorMetro`. Se calcula respetando rotación.
+- **Costo de cortes**: el total `cantidad_de_cortes × precioPorCorte` se distribuye entre muebles **proporcional a la cantidad de piezas** (no al área — los cortes escalan con piezas, no con superficie).
+- **Total por mueble** = placa + canto + cortes.
+
+## Sugerencias automáticas
+
+Para las piezas marcadas como "acepta ajuste", el optimizador analiza si conviene **extenderlas** para tragarse un sobrante adyacente y así ahorrar cortes:
+
+- **Extensión simple**: la pieza tiene un sobrante a la derecha o abajo que cubre toda su altura/ancho; crece esos milímetros.
+- **Fila/columna shift-and-grow**: una pieza en una fila/columna con sobrante al final puede crecer `sobrante / N` desplazando las que vienen después.
+- **Bonus de borde**: si el sobrante toca el borde de la placa, se suma el kerf reservado en ese borde (un corte menos).
+
+Solo se sugieren extensiones que afectan a **todas las copias** de la pieza (las variantes parciales son una decisión manual). Aceptar la sugerencia actualiza las dimensiones y dispara un recálculo.
+
 ## Formato CSV
 
-Encabezado obligatorio:
+Hay dos formatos soportados al importar:
+
+### Nativo (separado por comas, con header)
+
+Header obligatorio:
 
 ```
 nombre,ancho,alto,cantidad,veta,grupo
 ```
+
+Columnas opcionales: `material`, `espesor` (cualquier orden, se detectan por nombre).
 
 - `veta`: `libre` | `ancho` | `alto`
 - `grupo`: nombre del mueble (texto libre; piezas con mismo grupo van juntas)
@@ -60,12 +87,24 @@ nombre,ancho,alto,cantidad,veta,grupo
 Ejemplo:
 
 ```csv
-nombre,ancho,alto,cantidad,veta,grupo
-Lateral,2320,150,2,libre,Baño
-Estante,605,445,4,libre,Baño
-Puerta,2000,494.5,2,libre,MA
-Escritorio,600,1400,1,libre,Dormitorio
+nombre,ancho,alto,cantidad,veta,grupo,material,espesor
+Lateral,2320,150,2,libre,Baño,Melamina blanca,18
+Estante,605,445,4,libre,Baño,Melamina blanca,18
+Puerta,2000,494.5,2,libre,MA,,
+Escritorio,600,1400,1,libre,Dormitorio,,
 ```
+
+Al exportar, el header sólo incluye `material` y/o `espesor` si alguna pieza tiene esos campos seteados.
+
+### CAD / PolyBoard (separado por `;`, sin header)
+
+Si pegás un CSV con `;` y sin la cabecera nativa, se interpreta como exportación de PolyBoard:
+
+```
+ancho;alto;cantidad;material;fibra;nombre;cinta_sup;cinta_inf;grosor_si;cinta_der;cinta_izq;grosor_id;...
+```
+
+`fibra`: `0` = libre, `1` = paralela al ancho, `2` = paralela al alto. Las cuatro banderas de cinta (0/1) se cargan en `cantos`. Todas las piezas se importan al grupo "Importado".
 
 ## Algoritmo
 
@@ -89,13 +128,13 @@ optimizador_cortes/
 ├── styles.css              # estilos (incluye @media print)
 ├── favicon.svg
 ├── js/
-│   ├── app.js              # bootstrap, conecta UI ↔ estado
+│   ├── app.js              # bootstrap, conecta UI ↔ estado, aplica sugerencias
 │   ├── state.js            # modelo + localStorage + JSON IO
 │   ├── optimizer.js        # algoritmo (puro, sin DOM)
-│   ├── cuts.js             # decomposición en plan de cortes
-│   ├── renderer.js         # SVG + listas + página de impresión
-│   ├── csv.js              # parse/serialize CSV
-│   ├── ui-config.js        # panel de configuración (placas + globales)
+│   ├── cuts.js             # descomposición en plan de cortes
+│   ├── renderer.js         # SVG + listas + desglose + sugerencias + página de impresión
+│   ├── csv.js              # parse/serialize CSV (nativo + CAD/PolyBoard)
+│   ├── ui-config.js        # panel de configuración (placas + globales + precios)
 │   ├── ui-piezas.js        # tabla de piezas agrupada por mueble + drag-and-drop
 │   └── icons.js            # iconos Lucide inline + helper de tooltip
 ├── tests/
@@ -122,7 +161,7 @@ Tu proyecto se guarda automáticamente en `localStorage` del navegador. Para res
 - Cortes solo guillotine (rectos pasantes). Layouts no-guillotine (Max-Rects) pack mejor pero no son ejecutables en sierra de panel.
 - Sin soporte multi-proyecto simultáneo (un proyecto activo, archivos JSON para los demás).
 - El optimizador no considera la posibilidad de stack-cutting (cortar varias placas apiladas a la vez).
-- Sin cálculo automático de tapacanto / costo de material.
+- El optimizador no separa por material/espesor: si mezclás materiales distintos, las piezas pueden caer en cualquier placa. Para separar materiales, hacelo en proyectos distintos.
 
 ## Stack
 
