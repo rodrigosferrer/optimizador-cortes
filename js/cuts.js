@@ -56,7 +56,9 @@ function buscarOptimo(rect, piezas, kerf, limit) {
   for (const p of dentro) { candY.add(p.y2); candY.add(p.y - kerf); }
   const ys = [...candY].filter(y => y > rect.y + TOL && y < rect.y2 - TOL).sort((a, b) => a - b);
   for (const y of ys) {
-    if (dentro.some(p => p.y < y - TOL && p.y2 > y + TOL)) continue;
+    // The cut consumes [y, y + kerf]. Reject if any piece body overlaps that
+    // zone (not just strictly straddles the line — the kerf has width).
+    if (dentro.some(p => p.y < y + kerf - TOL && p.y2 > y + TOL)) continue;
     const cap = mejor ? mejor.length - 1 : limit - 1;
     const candidato = evaluar(
       { x: rect.x, y: rect.y, x2: rect.x2, y2: y },
@@ -72,7 +74,8 @@ function buscarOptimo(rect, piezas, kerf, limit) {
   for (const p of dentro) { candX.add(p.x2); candX.add(p.x - kerf); }
   const xs = [...candX].filter(x => x > rect.x + TOL && x < rect.x2 - TOL).sort((a, b) => a - b);
   for (const x of xs) {
-    if (dentro.some(p => p.x < x - TOL && p.x2 > x + TOL)) continue;
+    // Same kerf-aware overlap check as horizontal.
+    if (dentro.some(p => p.x < x + kerf - TOL && p.x2 > x + TOL)) continue;
     const cap = mejor ? mejor.length - 1 : limit - 1;
     const candidato = evaluar(
       { x: rect.x, y: rect.y, x2: x, y2: rect.y2 },
