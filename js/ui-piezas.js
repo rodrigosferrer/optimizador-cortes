@@ -68,7 +68,7 @@ function renderGrupo(grupo) {
     <table class="tabla-grupo">
       <thead>
         <tr>
-          <th></th><th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th></th>
+          <th></th><th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th title="Cantos">⊟</th><th></th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -130,6 +130,7 @@ function renderGrupo(grupo) {
 
 function renderFila(p) {
   const veta = p.vetaDireccion || 'libre';
+  if (!p.cantos) p.cantos = { sup: false, inf: false, izq: false, der: false };
   const tr = document.createElement('tr');
   tr.dataset.piezaId = p.id;
   tr.innerHTML = `
@@ -145,8 +146,10 @@ function renderFila(p) {
         <option value="alto"  ${veta === 'alto'  ? 'selected' : ''}>↕ alto</option>
       </select>
     </td>
+    <td class="cantos-cell"></td>
     <td><button class="icon-only btn-rm-pieza" title="Quitar">${icon('trash')}</button></td>
   `;
+  tr.querySelector('.cantos-cell').appendChild(widgetCantos(p, _onChange));
   const inputs = tr.querySelectorAll('input');
   const sel = tr.querySelector('select');
   inputs[0].oninput = () => { p.nombre = inputs[0].value; _onChange(); };
@@ -198,4 +201,61 @@ function rerenderStats() {
 
 function escapeAttr(s) {
   return String(s).replace(/"/g, '&quot;');
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function widgetCantos(p, onChange) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', 28);
+  svg.setAttribute('height', 28);
+  svg.classList.add('cantos-widget');
+  svg.setAttribute('aria-label', 'Cantos de la pieza');
+
+  // Center panel (visual reference)
+  const center = document.createElementNS(SVG_NS, 'rect');
+  center.setAttribute('x', 6); center.setAttribute('y', 6);
+  center.setAttribute('width', 12); center.setAttribute('height', 12);
+  center.setAttribute('fill', '#f5e8c8');
+  center.setAttribute('stroke', '#a8a29e');
+  center.setAttribute('stroke-width', 0.5);
+  svg.appendChild(center);
+
+  const lados = [
+    { key: 'sup', x: 5,  y: 2,  w: 14, h: 4,  label: 'superior' },
+    { key: 'inf', x: 5,  y: 18, w: 14, h: 4,  label: 'inferior' },
+    { key: 'izq', x: 2,  y: 5,  w: 4,  h: 14, label: 'izquierdo' },
+    { key: 'der', x: 18, y: 5,  w: 4,  h: 14, label: 'derecho' },
+  ];
+
+  for (const lado of lados) {
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('x', lado.x); rect.setAttribute('y', lado.y);
+    rect.setAttribute('width', lado.w); rect.setAttribute('height', lado.h);
+    rect.setAttribute('rx', 1);
+    rect.setAttribute('cursor', 'pointer');
+    rect.setAttribute('data-lado', lado.key);
+    const pintar = () => {
+      const activo = !!p.cantos[lado.key];
+      rect.setAttribute('fill', activo ? '#a16207' : '#e7dfd1');
+      rect.setAttribute('stroke', activo ? '#854d0e' : 'transparent');
+      rect.setAttribute('stroke-width', activo ? 0.5 : 0);
+    };
+    pintar();
+    rect.addEventListener('mouseenter', () => {
+      if (!p.cantos[lado.key]) rect.setAttribute('fill', '#d4c5a3');
+    });
+    rect.addEventListener('mouseleave', pintar);
+    rect.addEventListener('click', () => {
+      p.cantos[lado.key] = !p.cantos[lado.key];
+      pintar();
+      onChange();
+    });
+    const title = document.createElementNS(SVG_NS, 'title');
+    title.textContent = `Canto ${lado.label}`;
+    rect.appendChild(title);
+    svg.appendChild(rect);
+  }
+  return svg;
 }

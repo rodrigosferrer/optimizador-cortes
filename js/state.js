@@ -47,6 +47,7 @@ export function nuevaPieza(grupoId) {
     vetaDireccion: 'libre',
     material: '',
     espesor: 0,
+    cantos: { sup: false, inf: false, izq: false, der: false },
   };
 }
 

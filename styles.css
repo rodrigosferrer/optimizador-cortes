@@ -374,6 +374,10 @@ label { display: inline-flex; align-items: center; gap: var(--space-1); font-siz
 .drag-handle .ico { width: 14px; height: 14px; }
 tr.dragging { opacity: 0.4; }
 
+.cantos-cell { text-align: center; width: 32px; }
+.cantos-widget { display: block; margin: 0 auto; }
+.cantos-widget rect[data-lado] { transition: fill 0.12s; }
+
 /* === Tables === */
 table { border-collapse: separate; border-spacing: 0; width: 100%; margin: var(--space-3) 0; font-size: 0.875rem; }
 thead th {

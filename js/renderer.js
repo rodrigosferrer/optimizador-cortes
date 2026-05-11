@@ -28,6 +28,7 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
   const enOptimo = cota > 0 && m.placasUsadas === cota;
   const resumen = document.createElement('div');
   resumen.className = 'resumen';
+  const metrosCanto = calcularMetrosCanto(resultado);
   resumen.innerHTML = `
     <div>Placas usadas: <strong>${m.placasUsadas}</strong>${
       cota > 0
@@ -36,6 +37,7 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     }</div>
     <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong>${tip('Porcentaje del área de las placas usado por piezas (vs. desperdicio).')}</div>
     <div>Desperdicio: <strong>${(m.desperdicio * 100).toFixed(1)}%</strong></div>
+    ${metrosCanto > 0 ? `<div>Canto: <strong>${metrosCanto.toFixed(2)} m</strong>${tip('Metros lineales totales de tapacanto necesarios, sumando los bordes marcados de todas las piezas.')}</div>` : ''}
     ${m.costoTotal > 0 ? `<div>Costo total: <strong>${formatearMoneda(m.costoTotal)}</strong>${tip('Suma de los precios de las placas usadas (incluye placas faltantes a comprar).')}</div>` : ''}
     ${m.placasFaltantes > 0 ? `<div class="warn">⚠ Faltan ${m.placasFaltantes} placa(s) en stock</div>` : ''}
   `;
@@ -142,6 +144,11 @@ function dibujarPlaca(placa, cortes = [], nombrePorPiezaId = null) {
     rect.setAttribute('filter', 'url(#piezaShadow)');
     g.appendChild(rect);
 
+    // Edge bands (cantos) - thick colored stripes along marked edges.
+    // c.cantos was rotated/mirrored by the optimizer if the piece was rotated;
+    // otherwise sup/inf/izq/der map directly to top/bottom/left/right.
+    if (c.cantos) dibujarCantosDePieza(g, c);
+
     const nombreCompleto = (nombrePorPiezaId && nombrePorPiezaId.get(c.piezaId)) || c.nombre;
     g.appendChild(etiquetaPieza(c, idx + 1, nombreCompleto));
 
@@ -192,6 +199,33 @@ function dibujarCortes(svg, placa, cortes) {
     num.textContent = corte.n;
     svg.appendChild(num);
   }
+}
+
+function dibujarCantosDePieza(g, c) {
+  const grosor = Math.max(8, Math.min(c.ancho, c.alto) * 0.04);
+  const banda = (x, y, w, h) => {
+    const r = document.createElementNS(SVG_NS, 'rect');
+    r.setAttribute('x', x); r.setAttribute('y', y);
+    r.setAttribute('width', w); r.setAttribute('height', h);
+    r.setAttribute('fill', '#a16207');
+    r.setAttribute('opacity', '0.85');
+    g.appendChild(r);
+  };
+  // sup/inf/izq/der are in the piece's NON-rotated frame. If c.rotada, swap.
+  let sup, inf, izq, der;
+  if (c.rotada) {
+    // 90° rotation: piece original ancho was placed along Y. Original "sup" (top) ends up on the LEFT edge of the displayed rectangle.
+    sup = c.cantos.izq;
+    inf = c.cantos.der;
+    izq = c.cantos.inf;
+    der = c.cantos.sup;
+  } else {
+    ({ sup, inf, izq, der } = c.cantos);
+  }
+  if (sup) banda(c.x, c.y, c.ancho, grosor);
+  if (inf) banda(c.x, c.y + c.alto - grosor, c.ancho, grosor);
+  if (izq) banda(c.x, c.y, grosor, c.alto);
+  if (der) banda(c.x + c.ancho - grosor, c.y, grosor, c.alto);
 }
 
 function etiquetaPieza(c, n, nombreCompleto) {
@@ -433,6 +467,29 @@ function costoPorMueble(resultado, proyecto) {
     }
   }
   return costoPorNombre;
+}
+
+// Total linear meters of edge banding needed. For each placed piece, sum the
+// length of each marked edge. Returns meters.
+function calcularMetrosCanto(resultado) {
+  let mm = 0;
+  for (const placa of resultado.placas) {
+    for (const c of placa.colocaciones) {
+      if (!c.cantos) continue;
+      // The piece's logical (sup/inf/izq/der) maps to its physical edges in
+      // the layout differently when rotated. Length of an edge is the edge's
+      // ACTUAL length, which depends on the orientation in the layout.
+      // sup/inf in the piece's own frame = its width = its original ancho.
+      // After rotation, that "width" becomes the placed `alto`.
+      const ladoSupInfMM = c.rotada ? c.alto : c.ancho;
+      const ladoIzqDerMM = c.rotada ? c.ancho : c.alto;
+      if (c.cantos.sup) mm += ladoSupInfMM;
+      if (c.cantos.inf) mm += ladoSupInfMM;
+      if (c.cantos.izq) mm += ladoIzqDerMM;
+      if (c.cantos.der) mm += ladoIzqDerMM;
+    }
+  }
+  return mm / 1000;
 }
 
 function formatearMoneda(n) {

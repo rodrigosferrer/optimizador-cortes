@@ -105,6 +105,14 @@ function parsearCAD(lineas, grupos) {
     if (fibra === 1) vetaDireccion = 'ancho';
     else if (fibra === 2) vetaDireccion = 'alto';
 
+    // Edge band presence flags: col 6 sup, col 7 inf, col 9 der, col 10 izq.
+    const cantos = {
+      sup: cells[6] === '1',
+      inf: cells[7] === '1',
+      der: cells[9] === '1',
+      izq: cells[10] === '1',
+    };
+
     piezas.push({
       ...nuevaPieza(grupoId),
       nombre,
@@ -112,6 +120,7 @@ function parsearCAD(lineas, grupos) {
       vetaDireccion,
       material,
       espesor: 0,
+      cantos,
     });
   }
   return { piezas, grupos: gruposNuevos };

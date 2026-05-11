@@ -310,6 +310,7 @@ function intentarColocar(item, placa, kerf) {
     x: mejor.x, y: mejor.y,
     ancho: w, alto: h,
     rotada: mejorOri.rotada,
+    cantos: pieza.cantos || null,
   });
 
   const nuevos = splitFreeRect(mejor, w, h, kerf, sRule);
