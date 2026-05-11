@@ -577,15 +577,18 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
   const piezaPorId = new Map(proyecto.piezas.map(p => [p.id, p]));
   const out = [];
 
-  // Build one suggestion PER candidate pieza in the row. A candidate is a
-  // pieza in the row whose all copies are inside the row (no variant
-  // required) and which accepts adjustments. The extension is
-  //   S / count_in_row(this pieza)
-  // because growing K identical copies of pieza P by X each consumes K*X of
-  // the sobra. Other piezas in the row don't grow — they just shift.
+  // Build one suggestion PER candidate pieza in the line. A candidate is a
+  // pieza in the line whose all copies are inside it (no variant required)
+  // and which accepts adjustments.
+  //
+  // When pieza P grows, pieces BEFORE the first P in the line don't move;
+  // P and pieces AFTER it shift. So the sobrante at the line's end only
+  // needs to cover the perpendicular dimension of the SHIFTING set, not
+  // the whole line.
   const procesarLinea = (linea, esHorizontal, sobrante, placa) => {
     if (linea.length < 2) return [];
     const S = esHorizontal ? sobrante.ancho : sobrante.alto;
+    const haveTransversal = esHorizontal ? sobrante.alto : sobrante.ancho;
 
     const conteo = new Map();
     for (const c of linea) {
@@ -597,9 +600,16 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
       const pieza = piezaPorId.get(pid);
       if (!pieza) continue;
       if (!pieza.aceptaAjuste) continue;
-      if (pieza.cantidad !== count) continue; // variant would be required → skip
+      if (pieza.cantidad !== count) continue;
       const ext = S / count;
       if (ext < 20) continue;
+
+      // Find first index where pieza appears; everything from there shifts.
+      const firstIdx = linea.findIndex(c => c.piezaId === pid);
+      const shifting = linea.slice(firstIdx);
+      const maxTransversal = Math.max(...shifting.map(c => esHorizontal ? c.alto : c.ancho));
+      if (haveTransversal < maxTransversal - 0.5) continue; // sobrante not deep enough
+
       const someColoc = linea.find(c => c.piezaId === pid);
       const eje = esHorizontal
         ? (someColoc.rotada ? 'alto' : 'ancho')
@@ -637,11 +647,10 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
       fila.sort((a, b) => a.x - b.x);
       const ult = fila[fila.length - 1];
       const ux2 = ult.x + ult.ancho;
-      const maxAlto = Math.max(...fila.map(c => c.alto));
+      // Per-candidate check inside procesarLinea handles the sobrante alto.
       for (const s of placa.sobrantes || []) {
         if (Math.abs(s.x - (ux2 + kerf)) <= TOL &&
-            Math.abs(s.y - fila[0].y) <= TOL &&
-            s.alto >= maxAlto - TOL) {
+            Math.abs(s.y - fila[0].y) <= TOL) {
           for (const r of procesarLinea(fila, true, s, placa)) out.push(r);
           break;
         }
@@ -659,11 +668,9 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
       col.sort((a, b) => a.y - b.y);
       const ult = col[col.length - 1];
       const uy2 = ult.y + ult.alto;
-      const maxAncho = Math.max(...col.map(c => c.ancho));
       for (const s of placa.sobrantes || []) {
         if (Math.abs(s.y - (uy2 + kerf)) <= TOL &&
-            Math.abs(s.x - col[0].x) <= TOL &&
-            s.ancho >= maxAncho - TOL) {
+            Math.abs(s.x - col[0].x) <= TOL) {
           for (const r of procesarLinea(col, false, s, placa)) out.push(r);
           break;
         }
