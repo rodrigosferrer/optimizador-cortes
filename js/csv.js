@@ -29,6 +29,9 @@ export function parsearCSV(texto, grupos = []) {
 function parsearNativo(lineas, grupos) {
   const head = parsearLinea(lineas[0]).map(s => s.toLowerCase());
   const idx = Object.fromEntries(HEADER.map(c => [c, head.indexOf(c)]));
+  // Optional columns
+  const idxMaterial = head.indexOf('material');
+  const idxEspesor = head.indexOf('espesor');
 
   const gruposNuevos = [...grupos];
   const idPorNombre = new Map(gruposNuevos.map(g => [g.nombre.toLowerCase(), g.id]));
@@ -41,6 +44,8 @@ function parsearNativo(lineas, grupos) {
     const cantidad = Number(cells[idx.cantidad]);
     const vetaRaw = String(cells[idx.veta] || '').toLowerCase().trim();
     const grupoNombre = String(cells[idx.grupo] || '').trim() || 'Sin clasificar';
+    const material = idxMaterial >= 0 ? (cells[idxMaterial] || '').trim() : '';
+    const espesor = idxEspesor >= 0 ? (Number(cells[idxEspesor]) || 0) : 0;
     if (!Number.isFinite(ancho) || ancho <= 0) throw new Error(`Fila ${i + 1}: ancho inválido`);
     if (!Number.isFinite(alto) || alto <= 0) throw new Error(`Fila ${i + 1}: alto inválido`);
     if (!Number.isFinite(cantidad) || cantidad < 1) throw new Error(`Fila ${i + 1}: cantidad inválida`);
@@ -52,6 +57,7 @@ function parsearNativo(lineas, grupos) {
       nombre: cells[idx.nombre] || `Pieza ${i}`,
       ancho, alto, cantidad,
       vetaDireccion: vetaRaw,
+      material, espesor,
     });
   }
   return { piezas, grupos: gruposNuevos };
@@ -82,6 +88,8 @@ function parsearCAD(lineas, grupos) {
     const ancho = Number(cells[0].replace(',', '.'));
     const alto = Number(cells[1].replace(',', '.'));
     const cantidad = Number(cells[2]);
+    const material = (cells[3] || '').trim();
+    const espesor = Number((cells[4] || '0').replace(',', '.')) || 0;
     const nombre = cells[5] || `Pieza ${i + 1}`;
     if (!Number.isFinite(ancho) || ancho <= 0) throw new Error(`Fila ${i + 1}: ancho inválido (col. 1)`);
     if (!Number.isFinite(alto) || alto <= 0) throw new Error(`Fila ${i + 1}: alto inválido (col. 2)`);
@@ -101,6 +109,7 @@ function parsearCAD(lineas, grupos) {
       nombre,
       ancho, alto, cantidad,
       vetaDireccion,
+      material, espesor,
     });
   }
   return { piezas, grupos: gruposNuevos };
@@ -117,15 +126,25 @@ function obtenerOCrearGrupo(nombre, grupos, idPorNombre) {
 }
 
 export function serializarCSV(proyecto) {
-  const filas = [HEADER.join(',')];
+  // Include optional material/espesor columns only if any piece has them set.
+  const conMaterial = proyecto.piezas.some(p => (p.material || '').trim() !== '');
+  const conEspesor  = proyecto.piezas.some(p => Number(p.espesor) > 0);
+  const header = [...HEADER];
+  if (conMaterial) header.push('material');
+  if (conEspesor)  header.push('espesor');
+
+  const filas = [header.join(',')];
   const nombrePorId = Object.fromEntries(proyecto.grupos.map(g => [g.id, g.nombre]));
   for (const p of proyecto.piezas) {
-    filas.push([
+    const fila = [
       escapar(p.nombre),
       p.ancho, p.alto, p.cantidad,
       p.vetaDireccion || 'libre',
       escapar(nombrePorId[p.grupoId] || 'Sin clasificar'),
-    ].join(','));
+    ];
+    if (conMaterial) fila.push(escapar(p.material || ''));
+    if (conEspesor)  fila.push(p.espesor || 0);
+    filas.push(fila.join(','));
   }
   return filas.join('\n');
 }

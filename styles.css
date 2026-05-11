@@ -461,6 +461,16 @@ table input[type=number] { width: 70px; }
   box-shadow: var(--shadow-1);
 }
 .placa-wrap h3 { color: var(--fg); margin-bottom: var(--space-3); }
+.placa-meta {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
 .placa-svg {
   display: block;
   width: 100%;

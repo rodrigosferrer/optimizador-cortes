@@ -26,6 +26,89 @@ const SA_DEFAULTS = {
 };
 
 export function optimizar({ piezas, placas, config }) {
+  // Partition by (material, espesor). Pieces with the same key go together,
+  // and are restricted to plates with same key (or wildcard: empty mat/esp).
+  const grupos = new Map();
+  for (const p of piezas) {
+    const k = clavePart(p);
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(p);
+  }
+  if (grupos.size <= 1) {
+    return _optimizar({ piezas, placas, config });
+  }
+  const resultados = [];
+  for (const [clave, piezasSub] of grupos) {
+    const placasSub = placas.filter(pl => placaMatcheaClave(pl, clave));
+    if (placasSub.length === 0) {
+      // No matching plates: report all pieces in this partition as errors.
+      const [mat, esp] = clave.split('|');
+      const etiqueta = (mat || 'sin material') + (esp && esp !== '0' ? ` / espesor ${esp}` : '');
+      resultados.push({
+        placas: [],
+        metricas: { placasUsadas: 0, placasFaltantes: 0, aprovechamiento: 0, desperdicio: 0, cortesTotales: 0, costoTotal: 0, cotaTeorica: 0 },
+        errores: [`No hay placas stock compatibles para ${piezasSub.length} pieza(s) de ${etiqueta}`],
+      });
+      continue;
+    }
+    resultados.push(_optimizar({ piezas: piezasSub, placas: placasSub, config }));
+  }
+  return combinarResultados(resultados);
+}
+
+function clavePart(x) {
+  const mat = (x.material || '').trim().toLowerCase();
+  const esp = Number(x.espesor) || 0;
+  return `${mat}|${esp}`;
+}
+
+function placaMatcheaClave(placa, clave) {
+  const [matKey, espKey] = clave.split('|');
+  const placaMat = (placa.material || '').trim().toLowerCase();
+  const placaEsp = Number(placa.espesor) || 0;
+  const matOk = placaMat === '' || placaMat === matKey;
+  const espOk = placaEsp === 0 || String(placaEsp) === espKey;
+  return matOk && espOk;
+}
+
+function combinarResultados(resultados) {
+  const todasPlacas = [];
+  const todosErrores = [];
+  let placasFaltantes = 0;
+  let cortesTotales = 0;
+  let costoTotal = 0;
+  let cotaTeorica = 0;
+  let areaPiezas = 0;
+  let areaTotal = 0;
+  for (const r of resultados) {
+    todasPlacas.push(...r.placas);
+    todosErrores.push(...r.errores);
+    placasFaltantes += r.metricas.placasFaltantes || 0;
+    cortesTotales += r.metricas.cortesTotales || 0;
+    costoTotal += r.metricas.costoTotal || 0;
+    cotaTeorica += r.metricas.cotaTeorica || 0;
+    for (const p of r.placas) {
+      areaTotal += p.ancho * p.alto;
+      for (const c of p.colocaciones) areaPiezas += c.ancho * c.alto;
+    }
+  }
+  const aprovechamiento = areaTotal > 0 ? areaPiezas / areaTotal : 0;
+  return {
+    placas: todasPlacas,
+    metricas: {
+      placasUsadas: todasPlacas.length,
+      placasFaltantes,
+      aprovechamiento,
+      desperdicio: 1 - aprovechamiento,
+      cortesTotales,
+      costoTotal,
+      cotaTeorica,
+    },
+    errores: todosErrores,
+  };
+}
+
+function _optimizar({ piezas, placas, config }) {
   const kerf = config.kerf || 0;
   const margen = config.margenPlaca || 0;
   const estrategiaPlaca = config.estrategiaPlaca || 'chica-primero';
@@ -280,6 +363,8 @@ function abrirPlaca(tipo, margen) {
     alto: tipo.alto,
     vetaHorizontal: tipo.vetaHorizontal !== false,
     precio: Number(tipo.precio) || 0,
+    material: tipo.material || '',
+    espesor: Number(tipo.espesor) || 0,
     libres: [{ x: margen, y: margen, ancho: tipo.ancho - 2 * margen, alto: tipo.alto - 2 * margen }],
     colocaciones: [],
   };
@@ -379,6 +464,8 @@ function formatearPlaca(p) {
     alto: p.alto,
     vetaHorizontal: p.vetaHorizontal,
     precio: p.precio || 0,
+    material: p.material || '',
+    espesor: p.espesor || 0,
     colocaciones: p.colocaciones,
     sobrantes,
   };

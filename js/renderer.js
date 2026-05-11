@@ -66,7 +66,11 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     const cortes = planCortes(placa, kerf);
     const wrap = document.createElement('div');
     wrap.className = 'placa-wrap';
-    wrap.innerHTML = `<h3>Placa ${i + 1} — ${placa.ancho}×${placa.alto} mm</h3>`;
+    const meta = [];
+    if (placa.material) meta.push(escapeHtml(placa.material));
+    if (placa.espesor && placa.espesor > 0) meta.push(`${placa.espesor} mm esp.`);
+    const metaStr = meta.length ? ` <span class="placa-meta">${meta.join(' · ')}</span>` : '';
+    wrap.innerHTML = `<h3>Placa ${i + 1} — ${placa.ancho}×${placa.alto} mm${metaStr}</h3>`;
     const svg = dibujarPlaca(placa, cortes, nombrePorPiezaId);
     const pct = (placa.ancho / maxAncho) * 100;
     svg.style.width = pct + '%';

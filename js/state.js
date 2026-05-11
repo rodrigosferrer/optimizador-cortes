@@ -45,11 +45,17 @@ export function nuevaPieza(grupoId) {
     alto: 400,
     cantidad: 1,
     vetaDireccion: 'libre',
+    material: '',
+    espesor: 0,
   };
 }
 
 export function nuevaPlaca() {
-  return { ancho: 2600, alto: 1830, cantidad: 1, vetaHorizontal: true, precio: 0 };
+  return {
+    ancho: 2600, alto: 1830, cantidad: 1,
+    vetaHorizontal: true, precio: 0,
+    material: '', espesor: 0,
+  };
 }
 
 export function nuevoGrupo(nombre = 'Mueble') {

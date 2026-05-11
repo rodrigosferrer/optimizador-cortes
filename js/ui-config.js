@@ -1,6 +1,10 @@
 import { nuevaPlaca } from './state.js';
 import { icon } from './icons.js';
 
+function escapeAttr(s) {
+  return String(s || '').replace(/"/g, '&quot;');
+}
+
 export function montar(proyecto, onChange) {
   const cfg = proyecto.config;
   if (!cfg.estrategiaPlaca) cfg.estrategiaPlaca = 'chica-primero';
@@ -27,6 +31,8 @@ function renderPlacas(proyecto, onChange) {
   proyecto.placas.forEach((placa, i) => {
     if (placa.vetaHorizontal === undefined) placa.vetaHorizontal = true;
     if (placa.precio === undefined) placa.precio = 0;
+    if (placa.material === undefined) placa.material = '';
+    if (placa.espesor === undefined) placa.espesor = 0;
     const row = document.createElement('div');
     row.className = 'placa-row';
     row.innerHTML = `
@@ -42,6 +48,8 @@ function renderPlacas(proyecto, onChange) {
           <option value="v" ${!placa.vetaHorizontal ? 'selected' : ''}>↕ vertical</option>
         </select>
       </label>
+      Material <input type="text" value="${escapeAttr(placa.material)}" data-k="material" data-type="string" placeholder="(cualquiera)" title="Código de material — vacío = cualquier material" style="width:90px">
+      Esp. <input type="number" min="0" step="0.1" value="${placa.espesor}" data-k="espesor" title="Espesor (mm) — 0 = cualquiera" style="width:60px">
       <span class="placa-m2"></span>
       <button class="icon-only" data-action="rm" title="Quitar">${icon('trash')}</button>
     `;
@@ -54,7 +62,8 @@ function renderPlacas(proyecto, onChange) {
     actualizarM2();
     row.querySelectorAll('input').forEach(input => {
       input.oninput = () => {
-        placa[input.dataset.k] = Number(input.value) || 0;
+        const k = input.dataset.k;
+        placa[k] = input.dataset.type === 'string' ? input.value : (Number(input.value) || 0);
         actualizarM2();
         onChange();
       };
