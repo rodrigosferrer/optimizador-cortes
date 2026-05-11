@@ -6,7 +6,7 @@ export function proyectoVacio() {
     nombre: 'Proyecto sin nombre',
     grupos: [grupoInicial],
     piezas: [],
-    placas: [{ ancho: 2750, alto: 1830, cantidad: 10, vetaHorizontal: true }],
+    placas: [{ ancho: 2600, alto: 1830, cantidad: 10, vetaHorizontal: true }],
     config: { kerf: 3, margenPlaca: 0, estrategiaPlaca: 'chica-primero' },
   };
 }
@@ -49,7 +49,7 @@ export function nuevaPieza(grupoId) {
 }
 
 export function nuevaPlaca() {
-  return { ancho: 2750, alto: 1830, cantidad: 1, vetaHorizontal: true };
+  return { ancho: 2600, alto: 1830, cantidad: 1, vetaHorizontal: true };
 }
 
 export function nuevoGrupo(nombre = 'Mueble') {
