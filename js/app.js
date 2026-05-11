@@ -175,44 +175,31 @@ function montarBotones() {
         renderConCallbacks(_ultimoResultado);
       },
       onAplicarFila: (s) => {
-        const original = proyecto.piezas.find(p => p.id === s.piezaId);
-        if (!original) return;
-        const K = s.cantidadAfectada;
-        const N = s.cantidadTotal;
-        // Determine target pieza: if K < N → create variant, else use original
-        let target = original;
-        if (K < N) {
-          const variante = JSON.parse(JSON.stringify(original));
-          variante.id = crypto.randomUUID();
-          variante.cantidad = K;
-          variante[s.eje] = s.valorNuevo;
-          variante.nombre = original.nombre + ' (ext.)';
-          original.cantidad = N - K;
-          const idx = proyecto.piezas.indexOf(original);
-          proyecto.piezas.splice(idx + 1, 0, variante);
-          target = variante;
-        } else {
-          original[s.eje] = s.valorNuevo;
-        }
-        // Apply shift-and-grow to colocaciones (sorted by position).
-        // The first one stays in place but grows; each subsequent shifts by (i * extension).
-        const ext = s.extension;
+        // Only the SELECTED pieza grows. Each of its instances in the row
+        // gains `s.extension` mm. Other piezas in the row don't change
+        // dimensionally — they just shift along the row to keep kerfs intact.
+        const pieza = proyecto.piezas.find(p => p.id === s.piezaId);
+        if (!pieza) return;
+        pieza[s.eje] += s.extension;
         const horizontal = s.orientacion === 'horizontal';
         const sorted = [...s.colocaciones].sort((a, b) => horizontal ? a.x - b.x : a.y - b.y);
-        sorted.forEach((c, i) => {
-          c.piezaId = target.id;
-          c.nombre = target.nombre;
-          c.cantos = target.cantos;
+        let acumulado = 0;
+        for (const c of sorted) {
           if (horizontal) {
-            c.x += i * ext;
-            c.ancho += ext;
+            c.x += acumulado;
+            if (c.piezaId === pieza.id) {
+              c.ancho += s.extension;
+              acumulado += s.extension;
+            }
           } else {
-            c.y += i * ext;
-            c.alto += ext;
+            c.y += acumulado;
+            if (c.piezaId === pieza.id) {
+              c.alto += s.extension;
+              acumulado += s.extension;
+            }
           }
-        });
-        // Recompute sobrantes on affected plate
-        aplicarPiezaInPlace(_ultimoResultado, target, kerf);
+        }
+        aplicarPiezaInPlace(_ultimoResultado, pieza, kerf);
         onChange();
         uiPiezas.rerender(proyecto, onChange);
         renderConCallbacks(_ultimoResultado);

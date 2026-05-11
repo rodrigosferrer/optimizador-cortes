@@ -486,6 +486,7 @@ function analizarSugerencias(resultado, proyecto, kerf) {
     for (const c of placa.colocaciones) {
       const pieza = piezaPorId.get(c.piezaId);
       if (!pieza) continue;
+      if (!pieza.aceptaAjuste) continue;
       if (!datos.has(c.piezaId)) datos.set(c.piezaId, []);
       const cx2 = c.x + c.ancho;
       const cy2 = c.y + c.alto;
@@ -538,6 +539,9 @@ function analizarSugerencias(resultado, proyecto, kerf) {
       const valorNuevo = valorActual + mejorGrowth;
       const colocacionesAfectadas = orden.slice(0, mejorK).map(x => x.colocacion);
 
+      // Only surface "all instances grow X" suggestions automatically.
+      // Variants (partial growth) are intentionally NOT auto-suggested —
+      // splitting a pieza into copies is a manual decision the user makes.
       if (mejorK === pieza.cantidad) {
         sugerencias.push({
           type: 'extender',
@@ -546,24 +550,13 @@ function analizarSugerencias(resultado, proyecto, kerf) {
           cantidad: pieza.cantidad,
           colocaciones: colocacionesAfectadas,
         });
-      } else {
-        sugerencias.push({
-          type: 'variante',
-          piezaId, piezaNombre: pieza.nombre,
-          eje, valorActual, extension: mejorGrowth, valorNuevo,
-          cantidadAfectada: mejorK,
-          cantidadTotal: pieza.cantidad,
-          colocaciones: colocacionesAfectadas,
-        });
       }
     }
   }
-  // Augment with row/column "shift-and-grow" suggestions: when K same-pieza
-  // instances are arranged in a row (or column) and a sobrante sits at the
-  // end of that row, each instance can grow by sobrante / K (shifting the
-  // ones after the first to maintain kerf).
+  // Row/column shift-and-grow suggestions: only when ALL instances of the
+  // pieza are in this row/column (so no variant split is needed).
   for (const s of detectarFilasYColumnas(resultado, proyecto, kerf)) {
-    sugerencias.push(s);
+    if (s.cantidadAfectada === s.cantidadTotal) sugerencias.push(s);
   }
 
   return sugerencias.sort((a, b) => {
@@ -573,23 +566,71 @@ function analizarSugerencias(resultado, proyecto, kerf) {
   });
 }
 
-// Detect rows/columns of same-pieza instances with a sobrante at the END of
-// the line that spans the perpendicular range of the row/column. Each
-// instance can grow by `sobrante / K`, with subsequent instances shifting
-// down/right to keep kerfs intact.
+// Detect rows/columns of pieces (possibly mixed) with a sobrante at the END
+// of the line that spans the perpendicular range. Each piece can grow by
+// `sobrante / N`, shifting subsequent pieces to keep kerfs intact.
+//
+// To avoid implicit variant creation, we ONLY surface a row if every distinct
+// pieza in the row has all its copies inside the row (count in row == cantidad).
 function detectarFilasYColumnas(resultado, proyecto, kerf) {
   const TOL = 2;
   const piezaPorId = new Map(proyecto.piezas.map(p => [p.id, p]));
   const out = [];
-  for (const placa of resultado.placas) {
-    // Rows: same piezaId, same y, same alto, in horizontal sequence
-    const rowsByKey = new Map();
-    for (const c of placa.colocaciones) {
-      const key = c.piezaId + '|' + c.y + '|' + c.alto;
-      if (!rowsByKey.has(key)) rowsByKey.set(key, []);
-      rowsByKey.get(key).push(c);
+
+  // Build one suggestion PER candidate pieza in the row. A candidate is a
+  // pieza in the row whose all copies are inside the row (no variant
+  // required) and which accepts adjustments. The extension is
+  //   S / count_in_row(this pieza)
+  // because growing K identical copies of pieza P by X each consumes K*X of
+  // the sobra. Other piezas in the row don't grow — they just shift.
+  const procesarLinea = (linea, esHorizontal, sobrante, placa) => {
+    if (linea.length < 2) return [];
+    const S = esHorizontal ? sobrante.ancho : sobrante.alto;
+
+    const conteo = new Map();
+    for (const c of linea) {
+      conteo.set(c.piezaId, (conteo.get(c.piezaId) || 0) + 1);
     }
-    for (const fila of rowsByKey.values()) {
+
+    const sugs = [];
+    for (const [pid, count] of conteo) {
+      const pieza = piezaPorId.get(pid);
+      if (!pieza) continue;
+      if (!pieza.aceptaAjuste) continue;
+      if (pieza.cantidad !== count) continue; // variant would be required → skip
+      const ext = S / count;
+      if (ext < 20) continue;
+      const someColoc = linea.find(c => c.piezaId === pid);
+      const eje = esHorizontal
+        ? (someColoc.rotada ? 'alto' : 'ancho')
+        : (someColoc.rotada ? 'ancho' : 'alto');
+      const valorActual = pieza[eje];
+      sugs.push({
+        type: 'fila',
+        orientacion: esHorizontal ? 'horizontal' : 'vertical',
+        piezaId: pid,
+        piezaNombre: pieza.nombre,
+        eje, valorActual,
+        extension: Math.floor(ext * 10) / 10,
+        valorNuevo: Math.floor((valorActual + ext) * 10) / 10,
+        cantidadEnLinea: count,
+        totalEnLinea: linea.length,
+        colocaciones: [...linea],
+        sobrante, placa, kerf,
+      });
+    }
+    return sugs;
+  };
+
+  for (const placa of resultado.placas) {
+    // Rows: same y and alto (mixed piezas allowed)
+    const rows = new Map();
+    for (const c of placa.colocaciones) {
+      const key = c.y + '|' + c.alto;
+      if (!rows.has(key)) rows.set(key, []);
+      rows.get(key).push(c);
+    }
+    for (const fila of rows.values()) {
       if (fila.length < 2) continue;
       fila.sort((a, b) => a.x - b.x);
       const ult = fila[fila.length - 1];
@@ -598,40 +639,19 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
         if (Math.abs(s.x - (ux2 + kerf)) <= TOL &&
             Math.abs(s.y - ult.y) <= TOL &&
             Math.abs((s.y + s.alto) - (ult.y + ult.alto)) <= TOL) {
-          const N = fila.length;
-          const ext = s.ancho / N;
-          if (ext < 20) break;
-          const pieza = piezaPorId.get(fila[0].piezaId);
-          if (!pieza) break;
-          // Layout x grows; map through rotation
-          const eje = fila[0].rotada ? 'alto' : 'ancho';
-          const valorActual = pieza[eje];
-          out.push({
-            type: 'fila',
-            orientacion: 'horizontal',
-            piezaId: pieza.id, piezaNombre: pieza.nombre,
-            eje, valorActual,
-            extension: Math.floor(ext * 10) / 10,
-            valorNuevo: Math.floor((valorActual + ext) * 10) / 10,
-            cantidadAfectada: N,
-            cantidadTotal: pieza.cantidad,
-            colocaciones: [...fila],
-            sobrante: s,
-            placa,
-            kerf,
-          });
+          for (const r of procesarLinea(fila, true, s, placa)) out.push(r);
           break;
         }
       }
     }
-    // Columns: same piezaId, same x, same ancho, in vertical sequence
-    const colsByKey = new Map();
+    // Columns: same x and ancho
+    const cols = new Map();
     for (const c of placa.colocaciones) {
-      const key = c.piezaId + '|' + c.x + '|' + c.ancho;
-      if (!colsByKey.has(key)) colsByKey.set(key, []);
-      colsByKey.get(key).push(c);
+      const key = c.x + '|' + c.ancho;
+      if (!cols.has(key)) cols.set(key, []);
+      cols.get(key).push(c);
     }
-    for (const col of colsByKey.values()) {
+    for (const col of cols.values()) {
       if (col.length < 2) continue;
       col.sort((a, b) => a.y - b.y);
       const ult = col[col.length - 1];
@@ -640,27 +660,7 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
         if (Math.abs(s.y - (uy2 + kerf)) <= TOL &&
             Math.abs(s.x - ult.x) <= TOL &&
             Math.abs((s.x + s.ancho) - (ult.x + ult.ancho)) <= TOL) {
-          const N = col.length;
-          const ext = s.alto / N;
-          if (ext < 20) break;
-          const pieza = piezaPorId.get(col[0].piezaId);
-          if (!pieza) break;
-          const eje = col[0].rotada ? 'ancho' : 'alto';
-          const valorActual = pieza[eje];
-          out.push({
-            type: 'fila',
-            orientacion: 'vertical',
-            piezaId: pieza.id, piezaNombre: pieza.nombre,
-            eje, valorActual,
-            extension: Math.floor(ext * 10) / 10,
-            valorNuevo: Math.floor((valorActual + ext) * 10) / 10,
-            cantidadAfectada: N,
-            cantidadTotal: pieza.cantidad,
-            colocaciones: [...col],
-            sobrante: s,
-            placa,
-            kerf,
-          });
+          for (const r of procesarLinea(col, false, s, placa)) out.push(r);
           break;
         }
       }
@@ -692,10 +692,13 @@ function renderSugerencias(sugerencias, proyecto, callbacks) {
         <em>${s.eje}</em> a <strong>${s.valorNuevo}</strong> mm (+${s.extension} mm).
         <span class="sug-nota">Se crea una variante separada con el nuevo tamaño.</span>`;
     } else { // 'fila'
-      const desc = `${s.cantidadAfectada} copias en ${s.orientacion === 'horizontal' ? 'fila' : 'columna'}`;
-      texto = `<strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
-        ${desc} pueden crecer <em>${s.eje}</em> a <strong>${s.valorNuevo}</strong> mm cada una (+${s.extension} mm).
-        <span class="sug-nota">Aprovechando sobrante de ${Math.round(s.sobrante.ancho)}×${Math.round(s.sobrante.alto)} mm. ${s.cantidadAfectada < s.cantidadTotal ? 'Se crea variante.' : ''}</span>`;
+      const detalle = s.cantidadEnLinea === 1
+        ? `crece ${s.extension} mm consumiendo todo el sobrante`
+        : `${s.cantidadEnLinea} copias crecen ${s.extension} mm cada una`;
+      texto = `<strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>
+        en ${s.orientacion === 'horizontal' ? 'fila' : 'columna'}:
+        ${detalle} (sobrante ${Math.round(s.sobrante.ancho)}×${Math.round(s.sobrante.alto)}).
+        <span class="sug-nota">Las otras piezas de la ${s.orientacion === 'horizontal' ? 'fila' : 'columna'} se desplazan para mantener el kerf.</span>`;
     }
     li.innerHTML = `<span class="sug-texto">${texto}</span><button class="sug-aplicar primary">Aplicar</button>`;
     li.querySelector('.sug-aplicar').onclick = () => {

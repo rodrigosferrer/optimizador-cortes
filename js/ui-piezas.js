@@ -68,7 +68,7 @@ function renderGrupo(grupo) {
     <table class="tabla-grupo">
       <thead>
         <tr>
-          <th></th><th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th title="Cantos">⊟</th><th></th>
+          <th></th><th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th title="Cantos">⊟</th><th title="Aceptar sugerencias de aprovechamiento (esta pieza puede crecer si hay espacio)">💡</th><th></th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -131,6 +131,7 @@ function renderGrupo(grupo) {
 function renderFila(p) {
   const veta = p.vetaDireccion || 'libre';
   if (!p.cantos) p.cantos = { sup: false, inf: false, izq: false, der: false };
+  if (p.aceptaAjuste === undefined) p.aceptaAjuste = false;
   const tr = document.createElement('tr');
   tr.dataset.piezaId = p.id;
   tr.innerHTML = `
@@ -147,6 +148,9 @@ function renderFila(p) {
       </select>
     </td>
     <td class="cantos-cell"></td>
+    <td style="text-align:center">
+      <input type="checkbox" class="chk-ajuste" ${p.aceptaAjuste ? 'checked' : ''} title="Aceptar sugerencias de aprovechamiento (esta pieza puede crecer si hay espacio)">
+    </td>
     <td><button class="icon-only btn-rm-pieza" title="Quitar">${icon('trash')}</button></td>
   `;
   tr.querySelector('.cantos-cell').appendChild(widgetCantos(p, _onChange));
@@ -157,6 +161,8 @@ function renderFila(p) {
   inputs[2].oninput = () => { p.alto = Number(inputs[2].value) || 0; _onChange(); rerenderStats(); };
   inputs[3].oninput = () => { p.cantidad = Number(inputs[3].value) || 0; _onChange(); rerenderStats(); };
   sel.onchange = () => { p.vetaDireccion = sel.value; _onChange(); };
+  const chkAjuste = tr.querySelector('.chk-ajuste');
+  if (chkAjuste) chkAjuste.onchange = () => { p.aceptaAjuste = chkAjuste.checked; _onChange(); };
   tr.querySelector('.btn-rm-pieza').onclick = () => {
     _proyecto.piezas = _proyecto.piezas.filter(x => x.id !== p.id);
     render();

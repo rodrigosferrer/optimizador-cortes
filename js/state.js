@@ -48,6 +48,7 @@ export function nuevaPieza(grupoId) {
     material: '',
     espesor: 0,
     cantos: { sup: false, inf: false, izq: false, der: false },
+    aceptaAjuste: false,
   };
 }
 
