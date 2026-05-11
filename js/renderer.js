@@ -623,10 +623,12 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
   };
 
   for (const placa of resultado.placas) {
-    // Rows: same y and alto (mixed piezas allowed)
+    // Horizontal "rows" — pieces that share the same TOP edge (y).
+    // The row's "alto" is the MAX alto of its pieces; the sobrante at the
+    // right must start at the same y and be at least as tall as the row max.
     const rows = new Map();
     for (const c of placa.colocaciones) {
-      const key = c.y + '|' + c.alto;
+      const key = c.y;
       if (!rows.has(key)) rows.set(key, []);
       rows.get(key).push(c);
     }
@@ -635,19 +637,20 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
       fila.sort((a, b) => a.x - b.x);
       const ult = fila[fila.length - 1];
       const ux2 = ult.x + ult.ancho;
+      const maxAlto = Math.max(...fila.map(c => c.alto));
       for (const s of placa.sobrantes || []) {
         if (Math.abs(s.x - (ux2 + kerf)) <= TOL &&
-            Math.abs(s.y - ult.y) <= TOL &&
-            Math.abs((s.y + s.alto) - (ult.y + ult.alto)) <= TOL) {
+            Math.abs(s.y - fila[0].y) <= TOL &&
+            s.alto >= maxAlto - TOL) {
           for (const r of procesarLinea(fila, true, s, placa)) out.push(r);
           break;
         }
       }
     }
-    // Columns: same x and ancho
+    // Vertical "columns" — pieces sharing the same LEFT edge (x).
     const cols = new Map();
     for (const c of placa.colocaciones) {
-      const key = c.x + '|' + c.ancho;
+      const key = c.x;
       if (!cols.has(key)) cols.set(key, []);
       cols.get(key).push(c);
     }
@@ -656,10 +659,11 @@ function detectarFilasYColumnas(resultado, proyecto, kerf) {
       col.sort((a, b) => a.y - b.y);
       const ult = col[col.length - 1];
       const uy2 = ult.y + ult.alto;
+      const maxAncho = Math.max(...col.map(c => c.ancho));
       for (const s of placa.sobrantes || []) {
         if (Math.abs(s.y - (uy2 + kerf)) <= TOL &&
-            Math.abs(s.x - ult.x) <= TOL &&
-            Math.abs((s.x + s.ancho) - (ult.x + ult.ancho)) <= TOL) {
+            Math.abs(s.x - col[0].x) <= TOL &&
+            s.ancho >= maxAncho - TOL) {
           for (const r of procesarLinea(col, false, s, placa)) out.push(r);
           break;
         }
