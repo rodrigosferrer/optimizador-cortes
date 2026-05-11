@@ -32,6 +32,9 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
   const precioCanto = (proyecto && proyecto.config && proyecto.config.precioCantoPorMetro) || 0;
   const costoCantoTotal = metrosCanto * precioCanto;
   const costoDesperdicio = m.costoTotal * m.desperdicio;
+  // Compute the cut plan for each plate once, reuse below.
+  const cortesPorPlaca = resultado.placas.map(p => planCortes(p, kerf));
+  const cortesTotal = cortesPorPlaca.reduce((s, arr) => s + arr.length, 0);
   resumen.innerHTML = `
     <div>Placas usadas: <strong>${m.placasUsadas}</strong>${
       cota > 0
@@ -40,6 +43,7 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     }</div>
     <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong>${tip('Porcentaje del área de las placas usado por piezas (vs. desperdicio).')}</div>
     <div>Desperdicio: <strong>${(m.desperdicio * 100).toFixed(1)}%</strong></div>
+    <div>Cortes totales: <strong>${cortesTotal}</strong>${tip('Cantidad total de cortes guillotine en todas las placas.')}</div>
     ${metrosCanto > 0 ? `<div>Canto: <strong>${metrosCanto.toFixed(2)} m</strong>${costoCantoTotal > 0 ? ` (${formatearMoneda(costoCantoTotal)})` : ''}${tip('Metros lineales totales de tapacanto necesarios, sumando los bordes marcados de todas las piezas.')}</div>` : ''}
     ${m.costoTotal > 0 ? `<div>Costo placas: <strong>${formatearMoneda(m.costoTotal)}</strong>${tip('Suma de los precios de las placas usadas (incluye placas faltantes a comprar).')}</div>` : ''}
     ${costoDesperdicio > 0 ? `<div>Costo desperdicio: <strong>${formatearMoneda(costoDesperdicio)}</strong>${tip('Costo del material desperdiciado: porcentaje de desperdicio × costo total de las placas.')}</div>` : ''}
@@ -63,7 +67,7 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
   const maxAncho = Math.max(...resultado.placas.map(p => p.ancho), 1);
 
   resultado.placas.forEach((placa, i) => {
-    const cortes = planCortes(placa, kerf);
+    const cortes = cortesPorPlaca[i];
     const wrap = document.createElement('div');
     wrap.className = 'placa-wrap';
     const meta = [];
