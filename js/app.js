@@ -10,6 +10,7 @@ let proyecto = cargar();
 
 function onChange() {
   guardar(proyecto);
+  actualizarEmptyState();
 }
 
 function bootstrap() {
@@ -19,6 +20,76 @@ function bootstrap() {
   uiConfig.montar(proyecto, onChange);
   uiPiezas.montar(proyecto, onChange);
   inicializarSplitter();
+  inicializarTipsTouch();
+  actualizarEmptyState();
+}
+
+// Empty state: shown in the result panel before the user has any pieces.
+// Once pieces exist, the empty state is cleared (replaced by an empty result
+// panel or — after calc — by the layout). After calc, we do not overwrite.
+function actualizarEmptyState() {
+  const r = document.getElementById('resultado');
+  if (!r) return;
+  const tieneEmpty = !!r.querySelector('.empty-state');
+  const tieneCalc = r.children.length > 0 && !tieneEmpty;
+  if (proyecto.piezas.length === 0) {
+    if (tieneCalc) return; // keep stale layout visible
+    renderEmptyState(r);
+  } else if (tieneEmpty) {
+    r.innerHTML = '';
+  }
+}
+
+function renderEmptyState(container) {
+  container.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">${icon('filePlus')}</div>
+      <h3>Empezá tu proyecto</h3>
+      <p>Agregá piezas a un mueble en el panel de la izquierda, importá un CSV con tu lista de cortes o cargá un proyecto previamente exportado.</p>
+      <div class="empty-actions">
+        <button id="es-add" class="primary">${icon('plus')} Primera pieza</button>
+        <button id="es-csv">${icon('upload')} Importar CSV</button>
+        <button id="es-import">${icon('upload')} Importar proyecto</button>
+      </div>
+      <p class="empty-hint">Tip: si trabajás en taller, exportá un PDF con Ctrl+P al final — la primera página es resumen y luego viene una placa por hoja.</p>
+    </div>
+  `;
+  container.querySelector('#es-add').onclick = () => {
+    const btn = document.querySelector('.grupo-card .btn-add-pieza');
+    if (btn) btn.click();
+  };
+  container.querySelector('#es-csv').onclick = () => document.getElementById('btn-importar-csv').click();
+  container.querySelector('#es-import').onclick = () => document.getElementById('btn-import').click();
+}
+
+// Make tooltips tap-friendly on touch devices: tapping a .tip toggles
+// .tip-active (mirrored in CSS to :hover behavior). Tapping elsewhere closes.
+function inicializarTipsTouch() {
+  document.addEventListener('click', (e) => {
+    const tip = e.target.closest('.tip');
+    document.querySelectorAll('.tip.tip-active').forEach(t => {
+      if (t !== tip) t.classList.remove('tip-active');
+    });
+    if (tip) {
+      e.preventDefault();
+      tip.classList.toggle('tip-active');
+    }
+  });
+}
+
+// Briefly highlight the table row of `piezaId` after a suggestion is applied,
+// so the user can see which pieza changed.
+function flashPiezaRow(piezaId) {
+  // The row may not exist yet because uiPiezas.rerender is synchronous but
+  // the DOM update needs to be queried after; rAF is enough.
+  requestAnimationFrame(() => {
+    const tr = document.querySelector(`tr[data-pieza-id="${piezaId}"]`);
+    if (!tr) return;
+    tr.classList.remove('flash');
+    void tr.offsetWidth; // restart animation if class was just removed
+    tr.classList.add('flash');
+    setTimeout(() => tr.classList.remove('flash'), 1300);
+  });
 }
 
 function montarNombre() {
@@ -119,6 +190,7 @@ function montarBotones() {
         pieza[eje] = valorNuevo;
         onChange();
         uiPiezas.rerender(proyecto, onChange);
+        flashPiezaRow(piezaId);
         // Try to apply the change WITHOUT moving any other piece.
         const ok = aplicarPiezaInPlace(_ultimoResultado, pieza, kerf);
         if (ok) {
@@ -172,6 +244,7 @@ function montarBotones() {
         aplicarPiezaInPlace(_ultimoResultado, variante, kerf);
         onChange();
         uiPiezas.rerender(proyecto, onChange);
+        flashPiezaRow(variante.id);
         renderConCallbacks(_ultimoResultado);
       },
       onAplicarFila: (s) => {
@@ -202,6 +275,7 @@ function montarBotones() {
         aplicarPiezaInPlace(_ultimoResultado, pieza, kerf);
         onChange();
         uiPiezas.rerender(proyecto, onChange);
+        flashPiezaRow(pieza.id);
         renderConCallbacks(_ultimoResultado);
       },
       onEditarPieza: (piezaId, cambios) => {

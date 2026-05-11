@@ -68,7 +68,7 @@ function renderGrupo(grupo) {
     <table class="tabla-grupo">
       <thead>
         <tr>
-          <th></th><th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th title="Cantos">⊟</th><th title="Aceptar sugerencias de aprovechamiento (esta pieza puede crecer si hay espacio)">💡</th><th></th>
+          <th></th><th>Nombre</th><th>Ancho</th><th>Alto</th><th>Cant.</th><th>Veta</th><th class="col-icon" title="Cantos">${icon('panelEdges')}</th><th class="col-icon" title="Aceptar sugerencias de aprovechamiento (esta pieza puede crecer si hay espacio)">${icon('bulb')}</th><th></th>
         </tr>
       </thead>
       <tbody></tbody>

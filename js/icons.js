@@ -14,6 +14,10 @@ const PATHS = {
   info:       '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
   grip:       '<circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="9" cy="18" r="1.2" fill="currentColor"/><circle cx="15" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="18" r="1.2" fill="currentColor"/>',
   sparkles:   '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.5 5.5l2 2M16.5 16.5l2 2M5.5 18.5l2-2M16.5 7.5l2-2"/><circle cx="12" cy="12" r="3"/>',
+  // Frame icon: outer rect + small markers on each side suggesting edge banding.
+  panelEdges: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M9 4h6M9 20h6M4 9v6M20 9v6"/>',
+  // Lightbulb for "acepta ajuste" (suggestions can grow this piece).
+  bulb:       '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.4 1 2.3h6c0-.9.3-1.7 1-2.3A7 7 0 0 0 12 2z"/>',
 };
 
 export function icon(name, attrs = '') {

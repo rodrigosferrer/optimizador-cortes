@@ -26,6 +26,7 @@
       <h2>Configuración</h2>
       <div id="config-placas"></div>
       <div class="config-globals">
+        <span class="globals-label">Corte</span>
         <label>Kerf (mm) <input type="number" id="cfg-kerf" min="0" step="0.1">
           <span class="tip" data-tip="Espesor de la sierra: cuánto material consume cada corte. Típico 3 mm.">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
@@ -33,16 +34,6 @@
         </label>
         <label>Margen (mm) <input type="number" id="cfg-margen" min="0" step="0.1">
           <span class="tip" data-tip="Milímetros que se descuentan del borde de cada placa, p.ej. para evitar bordes dañados.">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-          </span>
-        </label>
-        <label>Canto $/m <input type="number" id="cfg-precio-canto" min="0" step="0.01">
-          <span class="tip" data-tip="Precio por metro lineal de tapacanto. Se usa para calcular el costo total del canto.">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-          </span>
-        </label>
-        <label>$/corte <input type="number" id="cfg-precio-corte" min="0" step="0.01">
-          <span class="tip" data-tip="Costo fijo por cada corte guillotine. Útil para servicios que cobran por corte (no por metro).">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
           </span>
         </label>
@@ -54,6 +45,19 @@
             <option value="agotar-stock">Agotar stock (usar todo lo que tengo)</option>
           </select>
           <span class="tip" data-tip="Chica primero: usa primero placas chicas si la pieza entra (reserva las grandes).&#10;Grande primero: maximiza piezas por placa.&#10;Orden manual: respeta el orden de la lista.&#10;Agotar stock: pre-abre una placa de cada tipo con stock real antes de pedir placas virtuales (faltantes).">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          </span>
+        </label>
+      </div>
+      <div class="config-globals">
+        <span class="globals-label">Costos</span>
+        <label>Canto $/m <input type="number" id="cfg-precio-canto" min="0" step="0.01">
+          <span class="tip" data-tip="Precio por metro lineal de tapacanto. Se usa para calcular el costo total del canto.">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          </span>
+        </label>
+        <label>$/corte <input type="number" id="cfg-precio-corte" min="0" step="0.01">
+          <span class="tip" data-tip="Costo fijo por cada corte guillotine. Útil para servicios que cobran por corte (no por metro).">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
           </span>
         </label>
