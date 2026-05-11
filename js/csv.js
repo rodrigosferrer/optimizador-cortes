@@ -63,19 +63,23 @@ function parsearNativo(lineas, grupos) {
   return { piezas, grupos: gruposNuevos };
 }
 
-// Parser for PolyBoard's cutting-list CSV export (similar formats from IMOS /
-// MueblesCAD also work). Lines are `;`-separated, no header. Columns:
-//   0: largo (ancho de la pieza, mm)
-//   1: ancho (alto de la pieza, mm)
-//   2: cantidad
-//   3: material code (ignored)
-//   4: (ignored)
-//   5: nombre
-//   6-8: edge-band flags (ignored)
-//   9: grain-along-length flag (1 = veta a lo largo del ancho)
-//  10: grain-along-width flag  (1 = veta a lo largo del alto)
-//  ... rest ignored
-// All pieces land in a single auto-created group "Importado".
+// Parser for PolyBoard's ASCII / CSV cutting-list export. Default columns
+// (semicolon-separated, no header):
+//   0: Anchura (mm)
+//   1: Altura  (mm)
+//   2: Cantidad
+//   3: Material code
+//   4: Dirección de la fibra (0 = libre, 1 = paralela a Anchura, 2 = paralela a Altura)
+//   5: Referencia (nombre de la pieza)
+//   6: Cinta superior presente (0/1)
+//   7: Cinta inferior presente (0/1)
+//   8: Grosor cintas superior e inferior
+//   9: Cinta derecha presente (0/1)
+//  10: Cinta izquierda presente (0/1)
+//  11: Grosor cintas izquierda y derecha
+//  12-15: material / grosor por canto (izq, der, inf, sup)
+// PolyBoard's export doesn't include the panel thickness (espesor), so we
+// leave that field at 0 (= "any").
 function parsearCAD(lineas, grupos) {
   const gruposNuevos = [...grupos];
   const idPorNombre = new Map(gruposNuevos.map(g => [g.nombre.toLowerCase(), g.id]));
@@ -89,27 +93,25 @@ function parsearCAD(lineas, grupos) {
     const alto = Number(cells[1].replace(',', '.'));
     const cantidad = Number(cells[2]);
     const material = (cells[3] || '').trim();
-    const espesor = Number((cells[4] || '0').replace(',', '.')) || 0;
+    const fibra = Number(cells[4]) || 0;
     const nombre = cells[5] || `Pieza ${i + 1}`;
     if (!Number.isFinite(ancho) || ancho <= 0) throw new Error(`Fila ${i + 1}: ancho inválido (col. 1)`);
     if (!Number.isFinite(alto) || alto <= 0) throw new Error(`Fila ${i + 1}: alto inválido (col. 2)`);
     if (!Number.isFinite(cantidad) || cantidad < 1) throw new Error(`Fila ${i + 1}: cantidad inválida (col. 3)`);
 
-    // Veta: PolyBoard flags (col 9 = grain-along-length, col 10 = grain-along-width)
+    // PolyBoard fibra codes:
+    //   0 -> libre, 1 -> paralela a Anchura (= ancho), 2 -> paralela a Altura (= alto)
     let vetaDireccion = 'libre';
-    if (cells.length > 9) {
-      const flagAncho = cells[9] === '1';
-      const flagAlto  = cells.length > 10 && cells[10] === '1';
-      if (flagAncho) vetaDireccion = 'ancho';
-      else if (flagAlto) vetaDireccion = 'alto';
-    }
+    if (fibra === 1) vetaDireccion = 'ancho';
+    else if (fibra === 2) vetaDireccion = 'alto';
 
     piezas.push({
       ...nuevaPieza(grupoId),
       nombre,
       ancho, alto, cantidad,
       vetaDireccion,
-      material, espesor,
+      material,
+      espesor: 0,
     });
   }
   return { piezas, grupos: gruposNuevos };
