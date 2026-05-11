@@ -1,16 +1,13 @@
-// Decompose a placa layout into a sequence of guillotine cuts that minimizes
-// the total cut count. Brute-force search with branch-and-bound pruning.
+// Decompose a placa layout into a sequence of guillotine cuts.
+// Primary objective:   minimize the cut count.
+// Secondary tiebreak:  minimize the total cut length (avoids cuts that
+//                      extend through leftover space unnecessarily).
+// Branch-and-bound search with cut-count budget pruning.
 //
-// At each rectangle we try every valid horizontal AND vertical cut, recurse,
-// and keep the option that produces the fewest total cuts. Pure function — no
-// shared mutable state — so backtracking is free.
-//
-// Return convention from the search:
-//   []     -> base case: rect contains no piece, or one piece that fills it
-//             (no cuts needed).
-//   array  -> the chosen cut sequence.
-//   null   -> no valid decomposition exists within the budget (`limit`); the
-//             caller should ignore this branch.
+// Return convention:
+//   []     -> base case (no pieces, or one piece exactly fills the rect).
+//   array  -> chosen cut sequence.
+//   null   -> no valid decomposition within the budget.
 
 const TOL = 0.5; // mm tolerance for "is on edge"
 
@@ -43,54 +40,59 @@ function buscarOptimo(rect, piezas, kerf, limit) {
     const fillsY = p.y <= rect.y + TOL && p.y2 >= rect.y2 - TOL;
     if (fillsX && fillsY) return [];
   }
-  // Need at least one cut from here on. If budget is < 1, impossible.
   if (limit < 1) return null;
 
   let mejor = null;
+  const probar = (candidato) => {
+    if (candidato === null) return;
+    if (mejor === null || esMejorCandidato(candidato, mejor)) mejor = candidato;
+  };
 
-  // Horizontal cut candidates: bottom edges of pieces above the cut, OR top
-  // edges of pieces below the cut shifted back by the kerf so the kerf zone
-  // sits between the two pieces. Using p.y directly is WRONG because it puts
-  // the piece flush at p.y in the kerf zone (excluded from both sub-rects).
+  // Horizontal cut candidates
   const candY = new Set();
   for (const p of dentro) { candY.add(p.y2); candY.add(p.y - kerf); }
   const ys = [...candY].filter(y => y > rect.y + TOL && y < rect.y2 - TOL).sort((a, b) => a - b);
   for (const y of ys) {
-    // The cut consumes [y, y + kerf]. Reject if any piece body overlaps that
-    // zone (not just strictly straddles the line — the kerf has width).
     if (dentro.some(p => p.y < y + kerf - TOL && p.y2 > y + TOL)) continue;
     const cap = mejor ? mejor.length - 1 : limit - 1;
-    const candidato = evaluar(
+    probar(evaluar(
       { x: rect.x, y: rect.y, x2: rect.x2, y2: y },
       { x: rect.x, y: y + kerf, x2: rect.x2, y2: rect.y2 },
       { tipo: 'horizontal', pos: y, desde: rect.x, hasta: rect.x2, largo: rect.x2 - rect.x, kerf },
       dentro, kerf, cap
-    );
-    if (candidato !== null && (!mejor || candidato.length < mejor.length)) mejor = candidato;
+    ));
   }
 
-  // Vertical cut candidates: same logic as horizontal, with kerf shift.
+  // Vertical cut candidates
   const candX = new Set();
   for (const p of dentro) { candX.add(p.x2); candX.add(p.x - kerf); }
   const xs = [...candX].filter(x => x > rect.x + TOL && x < rect.x2 - TOL).sort((a, b) => a - b);
   for (const x of xs) {
-    // Same kerf-aware overlap check as horizontal.
     if (dentro.some(p => p.x < x + kerf - TOL && p.x2 > x + TOL)) continue;
     const cap = mejor ? mejor.length - 1 : limit - 1;
-    const candidato = evaluar(
+    probar(evaluar(
       { x: rect.x, y: rect.y, x2: x, y2: rect.y2 },
       { x: x + kerf, y: rect.y, x2: rect.x2, y2: rect.y2 },
       { tipo: 'vertical', pos: x, desde: rect.y, hasta: rect.y2, largo: rect.y2 - rect.y, kerf },
       dentro, kerf, cap
-    );
-    if (candidato !== null && (!mejor || candidato.length < mejor.length)) mejor = candidato;
+    ));
   }
 
-  return mejor; // may be null if no candidate fits the budget
+  return mejor;
 }
 
-// Returns [corte, ...subcuts] or null if total exceeds `presupuestoSubtree`
-// (i.e., the combined sub-cut count must be <= presupuestoSubtree).
+// Lexicographic: prefer fewer cuts, then shorter total length.
+function esMejorCandidato(a, b) {
+  if (a.length !== b.length) return a.length < b.length;
+  return largoTotal(a) < largoTotal(b);
+}
+
+function largoTotal(cortes) {
+  let total = 0;
+  for (const c of cortes) total += Math.max(0, c.hasta - c.desde);
+  return total;
+}
+
 function evaluar(sub1, sub2, corte, piezas, kerf, presupuestoSubtree) {
   if (presupuestoSubtree < 0) return null;
   const c1 = buscarOptimo(sub1, piezas, kerf, presupuestoSubtree);
