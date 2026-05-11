@@ -36,9 +36,26 @@ export function render(container, resultado, kerf = 0, proyecto = null) {
     }</div>
     <div>Aprovechamiento: <strong>${(m.aprovechamiento * 100).toFixed(1)}%</strong>${tip('Porcentaje del área de las placas usado por piezas (vs. desperdicio).')}</div>
     <div>Desperdicio: <strong>${(m.desperdicio * 100).toFixed(1)}%</strong></div>
+    ${m.costoTotal > 0 ? `<div>Costo total: <strong>${formatearMoneda(m.costoTotal)}</strong>${tip('Suma de los precios de las placas usadas (incluye placas faltantes a comprar).')}</div>` : ''}
     ${m.placasFaltantes > 0 ? `<div class="warn">⚠ Faltan ${m.placasFaltantes} placa(s) en stock</div>` : ''}
   `;
   container.appendChild(resumen);
+
+  // Per-mueble cost breakdown (only if prices were set)
+  if (m.costoTotal > 0 && proyecto && proyecto.grupos && proyecto.grupos.length > 0) {
+    const desglose = costoPorMueble(resultado, proyecto);
+    if (desglose.size > 0) {
+      const div = document.createElement('div');
+      div.className = 'costo-desglose';
+      div.innerHTML = '<h4>Costo por mueble</h4>' +
+        '<ul>' +
+          [...desglose.entries()].map(([nombre, costo]) =>
+            `<li><span>${escapeHtml(nombre)}</span><strong>${formatearMoneda(costo)}</strong></li>`
+          ).join('') +
+        '</ul>';
+      container.appendChild(div);
+    }
+  }
 
   // Scale plates proportionally so a small plate visually looks smaller
   // than a large one. The widest plate fills the available width; others
@@ -388,6 +405,38 @@ function colorPara(nombre) {
 
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Distribute each plate's price among muebles based on the area each mueble
+// occupies on that plate. Returns Map<grupoNombre, costo>.
+function costoPorMueble(resultado, proyecto) {
+  const grupoIdPorPieza = new Map(proyecto.piezas.map(p => [p.id, p.grupoId]));
+  const nombrePorGrupo = new Map(proyecto.grupos.map(g => [g.id, g.nombre]));
+  const costoPorNombre = new Map();
+  for (const placa of resultado.placas) {
+    if (!placa.precio || placa.colocaciones.length === 0) continue;
+    const areaPlaca = placa.ancho * placa.alto;
+    const areaPorGrupo = new Map();
+    for (const c of placa.colocaciones) {
+      const grupoId = grupoIdPorPieza.get(c.piezaId);
+      const area = c.ancho * c.alto;
+      areaPorGrupo.set(grupoId, (areaPorGrupo.get(grupoId) || 0) + area);
+    }
+    for (const [grupoId, area] of areaPorGrupo) {
+      const nombre = nombrePorGrupo.get(grupoId) || 'Sin grupo';
+      const share = area / areaPlaca;
+      costoPorNombre.set(nombre, (costoPorNombre.get(nombre) || 0) + share * placa.precio);
+    }
+  }
+  return costoPorNombre;
+}
+
+function formatearMoneda(n) {
+  try {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n);
+  } catch {
+    return '$ ' + (Math.round(n * 100) / 100).toFixed(2);
+  }
 }
 
 function printSummary(proyecto, resultado) {

@@ -279,6 +279,7 @@ function abrirPlaca(tipo, margen) {
     ancho: tipo.ancho,
     alto: tipo.alto,
     vetaHorizontal: tipo.vetaHorizontal !== false,
+    precio: Number(tipo.precio) || 0,
     libres: [{ x: margen, y: margen, ancho: tipo.ancho - 2 * margen, alto: tipo.alto - 2 * margen }],
     colocaciones: [],
   };
@@ -377,6 +378,7 @@ function formatearPlaca(p) {
     ancho: p.ancho,
     alto: p.alto,
     vetaHorizontal: p.vetaHorizontal,
+    precio: p.precio || 0,
     colocaciones: p.colocaciones,
     sobrantes,
   };
@@ -420,12 +422,17 @@ function calcularMetricas(placas, piezasColocables, stock) {
   const areaTotal = placas.reduce((s, p) => s + p.ancho * p.alto, 0);
   const aprovechamiento = areaTotal > 0 ? areaPiezas / areaTotal : 0;
   const cortesTotales = placas.reduce((s, p) => s + p.colocaciones.length * 2, 0);
+  // Total cost = sum of prices of all plates used. Virtual plates (faltantes)
+  // are already part of `placas` because they get opened — counting them
+  // again from `stock.faltantes` would double-count.
+  const costoTotal = placas.reduce((s, p) => s + (p.precio || 0), 0);
   return {
     placasUsadas,
     placasFaltantes,
     aprovechamiento,
     desperdicio: 1 - aprovechamiento,
     cortesTotales,
+    costoTotal,
   };
 }
 

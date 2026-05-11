@@ -26,6 +26,7 @@ function renderPlacas(proyecto, onChange) {
   root.innerHTML = '';
   proyecto.placas.forEach((placa, i) => {
     if (placa.vetaHorizontal === undefined) placa.vetaHorizontal = true;
+    if (placa.precio === undefined) placa.precio = 0;
     const row = document.createElement('div');
     row.className = 'placa-row';
     row.innerHTML = `
@@ -33,6 +34,7 @@ function renderPlacas(proyecto, onChange) {
       Ancho <input type="number" min="1" value="${placa.ancho}" data-k="ancho">
       Alto <input type="number" min="1" value="${placa.alto}" data-k="alto">
       Cant. <input type="number" min="0" value="${placa.cantidad}" data-k="cantidad">
+      $ <input type="number" min="0" step="0.01" value="${placa.precio}" data-k="precio" title="Precio por placa">
       <label title="Dirección de la veta de la placa">
         Veta:
         <select data-k="vetaHorizontal">

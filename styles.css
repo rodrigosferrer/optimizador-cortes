@@ -411,6 +411,34 @@ table input[type=number] { width: 70px; }
 .resumen .warn { color: var(--warn); }
 .resumen .cota { color: var(--muted); font-size: 0.85em; cursor: help; }
 
+.costo-desglose {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+}
+.costo-desglose h4 {
+  margin: 0 0 var(--space-2) 0;
+  color: var(--accent-hover);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.costo-desglose ul {
+  list-style: none; padding: 0; margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-1) var(--space-4);
+}
+.costo-desglose li {
+  display: flex; justify-content: space-between;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.costo-desglose strong { color: var(--fg); }
+
 .errores {
   background: var(--warn-soft);
   border: 1px solid var(--warn);
