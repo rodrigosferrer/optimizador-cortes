@@ -453,6 +453,7 @@ table input[type=number] { width: 70px; }
   font-size: 0.85rem;
 }
 .sugerencia-item .sug-texto em { font-style: normal; color: var(--accent-hover); font-weight: 600; }
+.sugerencia-item .sug-nota { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 2px; }
 .sugerencia-item .sug-aplicar { padding: 4px 10px; font-size: 0.8rem; flex-shrink: 0; }
 
 /* === Piece-edit popover === */

@@ -128,6 +128,52 @@ function montarBotones() {
           renderConCallbacks(optimizar(proyecto));
         }
       },
+      onCrearVariante: (sugerencia) => {
+        const original = proyecto.piezas.find(p => p.id === sugerencia.piezaId);
+        if (!original) return;
+        const K = sugerencia.cantidadAfectada;
+        const N = sugerencia.cantidadTotal;
+        // Create a new pieza variant cloned from original
+        const variante = JSON.parse(JSON.stringify(original));
+        variante.id = crypto.randomUUID();
+        variante.cantidad = K;
+        variante[sugerencia.eje] = sugerencia.valorNuevo;
+        variante.nombre = original.nombre + ' (ext.)';
+        // Reduce original cantidad
+        original.cantidad = N - K;
+        // Insert variant right after original in proyecto.piezas for visual continuity
+        const idx = proyecto.piezas.indexOf(original);
+        proyecto.piezas.splice(idx + 1, 0, variante);
+        // Update affected colocaciones in-place
+        for (const c of sugerencia.colocaciones) {
+          c.piezaId = variante.id;
+          c.nombre = variante.nombre;
+          // Grow the layout dimension that maps to this piece axis
+          const ejeEsAncho = sugerencia.eje === 'ancho';
+          const layoutAxis = (ejeEsAncho && !c.rotada) || (!ejeEsAncho && c.rotada) ? 'ancho' : 'alto';
+          c.cantos = variante.cantos;
+          c[layoutAxis] += sugerencia.extension;
+        }
+        // Recompute sobrantes on affected plates
+        const placasAfectadas = new Set();
+        for (const placa of _ultimoResultado.placas) {
+          for (const c of placa.colocaciones) {
+            if (sugerencia.colocaciones.includes(c)) { placasAfectadas.add(placa); break; }
+          }
+        }
+        for (const placa of placasAfectadas) {
+          // Use the renderer's helper indirectly via aplicarPiezaInPlace?
+          // Simpler: trigger a no-op in-place application to recompute sobrantes.
+          // We can call aplicarPiezaInPlace with the variant — it walks the layout
+          // and recomputes sobrantes on the variant's plates.
+        }
+        // Force sobrantes refresh via aplicarPiezaInPlace (variants's dims unchanged
+        // post-creation, so this is just a sobrantes recompute).
+        aplicarPiezaInPlace(_ultimoResultado, variante, kerf);
+        onChange();
+        uiPiezas.rerender(proyecto, onChange);
+        renderConCallbacks(_ultimoResultado);
+      },
       onEditarPieza: (piezaId, cambios) => {
         const pieza = proyecto.piezas.find(p => p.id === piezaId);
         if (!pieza) return;

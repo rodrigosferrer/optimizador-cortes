@@ -468,32 +468,28 @@ function escapeHtml(s) {
 // Suggestions (Level 1): detect pieces that could grow into adjacent sobrante
 // =========================================================================
 
-// For each pieza definition, collect the AVAILABLE extension of EACH placed
-// instance along the piece's own ancho/alto axes (mapped through rotation).
-// The safe extension to apply is the MINIMUM across all instances — because
-// extending the definition affects every copy, and any instance with less
-// room would now overlap with a neighbor.
+// For each pieza, build per-instance extension data. Then surface:
+//   - "extender" suggestion if ALL instances can grow by the same amount.
+//   - "variante" suggestion if only some instances can — proposes splitting
+//     the pieza into two definitions: an original (remaining copies) and a
+//     variant with the new (extended) dimension.
+// `colocaciones` in each suggestion is the list of layout instances to
+// modify when the suggestion is applied.
 function analizarSugerencias(resultado, proyecto, kerf) {
   const TOL = 2;
   const piezaPorId = new Map(proyecto.piezas.map(p => [p.id, p]));
 
-  // Map<piezaId, { ancho: number[], alto: number[] }>
-  // Each entry contains, per instance, the available extension along that
-  // piece-axis. 0 means "no adjacent sobrante / cannot extend".
-  const extensionesPorPieza = new Map();
+  // Map<piezaId, [{ colocacion, ext_ancho, ext_alto }]>
+  const datos = new Map();
 
   for (const placa of resultado.placas) {
     for (const c of placa.colocaciones) {
       const pieza = piezaPorId.get(c.piezaId);
       if (!pieza) continue;
-      if (!extensionesPorPieza.has(c.piezaId)) {
-        extensionesPorPieza.set(c.piezaId, { ancho: [], alto: [] });
-      }
-      const d = extensionesPorPieza.get(c.piezaId);
+      if (!datos.has(c.piezaId)) datos.set(c.piezaId, []);
       const cx2 = c.x + c.ancho;
       const cy2 = c.y + c.alto;
 
-      // Extension to the RIGHT in layout coords
       let rightExt = 0;
       for (const s of placa.sobrantes || []) {
         if (Math.abs(s.x - (cx2 + kerf)) <= TOL &&
@@ -502,7 +498,6 @@ function analizarSugerencias(resultado, proyecto, kerf) {
           rightExt = Math.max(rightExt, Math.floor(s.ancho));
         }
       }
-      // Extension to the BOTTOM in layout coords
       let bottomExt = 0;
       for (const s of placa.sobrantes || []) {
         if (Math.abs(s.y - (cy2 + kerf)) <= TOL &&
@@ -511,43 +506,62 @@ function analizarSugerencias(resultado, proyecto, kerf) {
           bottomExt = Math.max(bottomExt, Math.floor(s.alto));
         }
       }
+      // Map layout extension → piece axis extension (rotation-aware).
+      const ext_ancho = c.rotada ? bottomExt : rightExt;
+      const ext_alto  = c.rotada ? rightExt  : bottomExt;
+      datos.get(c.piezaId).push({ colocacion: c, placa, ext_ancho, ext_alto });
+    }
+  }
 
-      // Map layout-axis extension to piece-axis extension (account for rotation).
-      // - not rotada: right → pieza.ancho;  bottom → pieza.alto.
-      // - rotada:     right → pieza.alto;   bottom → pieza.ancho.
-      if (c.rotada) {
-        d.alto.push(rightExt);
-        d.ancho.push(bottomExt);
+  const sugerencias = [];
+  for (const [piezaId, instancias] of datos) {
+    const pieza = piezaPorId.get(piezaId);
+    if (!pieza) continue;
+    if (instancias.length < pieza.cantidad) continue; // missing data; skip
+
+    for (const eje of ['ancho', 'alto']) {
+      const key = eje === 'ancho' ? 'ext_ancho' : 'ext_alto';
+      // Sort instances by available growth descending so we can pick the
+      // best K-of-N subset (largest K * min(growth in subset) score).
+      const orden = [...instancias].sort((a, b) => b[key] - a[key]);
+
+      let mejorK = 0, mejorGrowth = 0, mejorScore = 0;
+      for (let k = 1; k <= orden.length; k++) {
+        const growth = orden[k - 1][key]; // min of top-k
+        if (growth < 20) break;
+        const score = k * growth;
+        if (score > mejorScore) { mejorScore = score; mejorK = k; mejorGrowth = growth; }
+      }
+      if (mejorK === 0) continue;
+
+      const valorActual = pieza[eje];
+      const valorNuevo = valorActual + mejorGrowth;
+      const colocacionesAfectadas = orden.slice(0, mejorK).map(x => x.colocacion);
+
+      if (mejorK === pieza.cantidad) {
+        sugerencias.push({
+          type: 'extender',
+          piezaId, piezaNombre: pieza.nombre,
+          eje, valorActual, extension: mejorGrowth, valorNuevo,
+          cantidad: pieza.cantidad,
+          colocaciones: colocacionesAfectadas,
+        });
       } else {
-        d.ancho.push(rightExt);
-        d.alto.push(bottomExt);
+        sugerencias.push({
+          type: 'variante',
+          piezaId, piezaNombre: pieza.nombre,
+          eje, valorActual, extension: mejorGrowth, valorNuevo,
+          cantidadAfectada: mejorK,
+          cantidadTotal: pieza.cantidad,
+          colocaciones: colocacionesAfectadas,
+        });
       }
     }
   }
-
-  // Build suggestions using the MIN extension across all instances.
-  const sugerencias = [];
-  for (const [piezaId, d] of extensionesPorPieza) {
-    const pieza = piezaPorId.get(piezaId);
-    if (!pieza) continue;
-    for (const eje of ['ancho', 'alto']) {
-      const exts = d[eje];
-      // Need at least one entry per instance. If any instance is missing data
-      // (e.g., piece wasn't placed), skip — can't guarantee safety.
-      if (exts.length < pieza.cantidad) continue;
-      const min = Math.min(...exts);
-      if (min < 20) continue;
-      const valorActual = pieza[eje];
-      sugerencias.push({
-        piezaId, piezaNombre: pieza.nombre,
-        eje, valorActual,
-        extension: min,
-        valorNuevo: valorActual + min,
-        cantidad: pieza.cantidad,
-      });
-    }
-  }
-  return sugerencias.sort((a, b) => b.extension - a.extension);
+  return sugerencias.sort((a, b) =>
+    (b.extension * (b.type === 'extender' ? b.cantidad : b.cantidadAfectada)) -
+    (a.extension * (a.type === 'extender' ? a.cantidad : a.cantidadAfectada))
+  );
 }
 
 function renderSugerencias(sugerencias, proyecto, callbacks) {
@@ -562,16 +576,24 @@ function renderSugerencias(sugerencias, proyecto, callbacks) {
     const grupo = pieza ? (nombrePorGrupo.get(pieza.grupoId) || '') : '';
     const li = document.createElement('li');
     li.className = 'sugerencia-item';
-    li.innerHTML = `
-      <span class="sug-texto">
-        <strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
+    let texto;
+    if (s.type === 'extender') {
+      texto = `<strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
         extender <em>${s.eje}</em> de <strong>${s.valorActual}</strong> a <strong>${s.valorNuevo}</strong> mm
-        (+${s.extension} mm${s.cantidad > 1 ? `, afecta ${s.cantidad} copias` : ''})
-      </span>
-      <button class="sug-aplicar primary">Aplicar</button>
-    `;
+        (+${s.extension} mm${s.cantidad > 1 ? `, afecta ${s.cantidad} copias` : ''})`;
+    } else { // variante
+      texto = `<strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
+        <strong>${s.cantidadAfectada} de ${s.cantidadTotal}</strong> copias pueden extender
+        <em>${s.eje}</em> a <strong>${s.valorNuevo}</strong> mm (+${s.extension} mm).
+        <span class="sug-nota">Se crea una variante separada con el nuevo tamaño.</span>`;
+    }
+    li.innerHTML = `<span class="sug-texto">${texto}</span><button class="sug-aplicar primary">Aplicar</button>`;
     li.querySelector('.sug-aplicar').onclick = () => {
-      callbacks.onAplicarSugerencia(s.piezaId, s.eje, s.valorNuevo);
+      if (s.type === 'extender') {
+        callbacks.onAplicarSugerencia(s.piezaId, s.eje, s.valorNuevo);
+      } else if (s.type === 'variante' && callbacks.onCrearVariante) {
+        callbacks.onCrearVariante(s);
+      }
     };
     ul.appendChild(li);
   }
