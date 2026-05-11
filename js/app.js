@@ -3,7 +3,7 @@ import * as uiConfig from './ui-config.js';
 import * as uiPiezas from './ui-piezas.js';
 import { parsearCSV, serializarCSV } from './csv.js';
 import { optimizar, optimizarMejorVariante } from './optimizer.js';
-import { render as renderResultado, registrarCallbacksRender } from './renderer.js';
+import { render as renderResultado, registrarCallbacksRender, aplicarPiezaInPlace } from './renderer.js';
 import { icon } from './icons.js';
 
 let proyecto = cargar();
@@ -106,7 +106,12 @@ function montarBotones() {
     descargar(blob, (proyecto.nombre || 'piezas') + '.csv');
   };
 
+  // Holds the last optimizer result so in-place edits operate on the live layout.
+  let _ultimoResultado = null;
+
   const renderConCallbacks = (r) => {
+    _ultimoResultado = r;
+    const kerf = proyecto.config.kerf || 0;
     const callbacks = {
       onAplicarSugerencia: (piezaId, eje, valorNuevo) => {
         const pieza = proyecto.piezas.find(p => p.id === piezaId);
@@ -114,8 +119,14 @@ function montarBotones() {
         pieza[eje] = valorNuevo;
         onChange();
         uiPiezas.rerender(proyecto, onChange);
-        const r2 = optimizar(proyecto);
-        renderConCallbacks(r2);
+        // Try to apply the change WITHOUT moving any other piece.
+        const ok = aplicarPiezaInPlace(_ultimoResultado, pieza, kerf);
+        if (ok) {
+          renderConCallbacks(_ultimoResultado);
+        } else {
+          // Fallback (shouldn't happen for valid suggestions): re-run optimizer.
+          renderConCallbacks(optimizar(proyecto));
+        }
       },
       onEditarPieza: (piezaId, cambios) => {
         const pieza = proyecto.piezas.find(p => p.id === piezaId);
@@ -123,12 +134,18 @@ function montarBotones() {
         Object.assign(pieza, cambios);
         onChange();
         uiPiezas.rerender(proyecto, onChange);
-        const r2 = optimizar(proyecto);
-        renderConCallbacks(r2);
+        // Try in-place first; if the edit doesn't fit, fall back to full re-optimization.
+        const ok = aplicarPiezaInPlace(_ultimoResultado, pieza, kerf);
+        if (ok) {
+          renderConCallbacks(_ultimoResultado);
+        } else {
+          if (!confirm('Las nuevas dimensiones no caben en la posición actual. ¿Recalcular el layout completo?')) return;
+          renderConCallbacks(optimizar(proyecto));
+        }
       },
     };
     registrarCallbacksRender(callbacks, proyecto);
-    renderResultado(document.getElementById('resultado'), r, proyecto.config.kerf || 0, proyecto, callbacks);
+    renderResultado(document.getElementById('resultado'), r, kerf, proyecto, callbacks);
   };
 
   document.getElementById('btn-calcular').onclick = () => {

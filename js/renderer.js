@@ -672,6 +672,87 @@ export function registrarCallbacksRender(callbacks, proyecto) {
   setPopoverCallbacks(callbacks, proyecto);
 }
 
+// =========================================================================
+// In-place layout update: resize a piece without re-running the optimizer.
+// Used when applying a suggestion (or a small popover edit that fits).
+// Returns true if applied, false if any instance can't accommodate the change.
+// =========================================================================
+export function aplicarPiezaInPlace(resultado, pieza, kerf) {
+  // First pass: validate every instance can take the new dimensions.
+  // We need to check, per placa, that for each instance of `pieza`:
+  //   - The new layout footprint doesn't overlap any other piece.
+  //   - The new footprint stays inside the placa bounds.
+  const cambios = [];
+  for (const placa of resultado.placas) {
+    for (const c of placa.colocaciones) {
+      if (c.piezaId !== pieza.id) continue;
+      const nuevoLW = c.rotada ? pieza.alto : pieza.ancho;
+      const nuevoLH = c.rotada ? pieza.ancho : pieza.alto;
+      // Future footprint
+      const nx = c.x, ny = c.y, nx2 = c.x + nuevoLW, ny2 = c.y + nuevoLH;
+      // Inside plate?
+      if (nx2 > placa.ancho + 0.5 || ny2 > placa.alto + 0.5) return false;
+      // No overlap with other pieces (account for kerf gap)
+      for (const otra of placa.colocaciones) {
+        if (otra === c) continue;
+        const ox2 = otra.x + otra.ancho, oy2 = otra.y + otra.alto;
+        const overlapX = nx < ox2 + kerf - 0.5 && nx2 > otra.x - kerf + 0.5;
+        const overlapY = ny < oy2 + kerf - 0.5 && ny2 > otra.y - kerf + 0.5;
+        if (overlapX && overlapY) return false;
+      }
+      cambios.push({ placa, c, nuevoLW, nuevoLH });
+    }
+  }
+  // Second pass: apply
+  for (const { c, nuevoLW, nuevoLH } of cambios) {
+    c.ancho = nuevoLW;
+    c.alto = nuevoLH;
+    if (pieza.cantos) c.cantos = pieza.cantos;
+  }
+  // Recompute sobrantes per affected placa.
+  const placasAfectadas = new Set(cambios.map(x => x.placa));
+  for (const placa of placasAfectadas) {
+    placa.sobrantes = recomputarSobrantes(placa, kerf);
+  }
+  return true;
+}
+
+// Recompute sobrantes by subtracting each piece (with kerf padding) from the
+// full placa rectangle. Simple geometric subtraction; resulting rects may be
+// overlapping/non-canonical but display-wise that's fine.
+function recomputarSobrantes(placa, kerf) {
+  let libres = [{ x: 0, y: 0, ancho: placa.ancho, alto: placa.alto }];
+  for (const c of placa.colocaciones) {
+    // The piece occupies [c.x, c.x + c.ancho] x [c.y, c.y + c.alto].
+    // Surrounding kerf (on the right and bottom only — left/top kerf was consumed
+    // by the cut that created this piece's region) is part of the cut, not the piece.
+    libres = restarRect(libres, c.x, c.y, c.ancho + kerf, c.alto + kerf);
+  }
+  return libres.filter(r => r.ancho >= 5 && r.alto >= 5);
+}
+
+function restarRect(libres, rx, ry, rw, rh) {
+  const out = [];
+  const rx2 = rx + rw, ry2 = ry + rh;
+  for (const l of libres) {
+    const lx2 = l.x + l.ancho, ly2 = l.y + l.alto;
+    // No overlap → keep as-is
+    if (lx2 <= rx || l.x >= rx2 || ly2 <= ry || l.y >= ry2) { out.push(l); continue; }
+    // Up to 4 strips around the subtraction
+    if (l.y < ry)    out.push({ x: l.x, y: l.y, ancho: l.ancho, alto: ry - l.y });
+    if (ly2 > ry2)   out.push({ x: l.x, y: ry2, ancho: l.ancho, alto: ly2 - ry2 });
+    if (l.x < rx) {
+      const top = Math.max(l.y, ry), bot = Math.min(ly2, ry2);
+      if (bot > top) out.push({ x: l.x, y: top, ancho: rx - l.x, alto: bot - top });
+    }
+    if (lx2 > rx2) {
+      const top = Math.max(l.y, ry), bot = Math.min(ly2, ry2);
+      if (bot > top) out.push({ x: rx2, y: top, ancho: lx2 - rx2, alto: bot - top });
+    }
+  }
+  return out;
+}
+
 // Detailed per-mueble breakdown: piezas count, total area (m²), edge band
 // length (m), plate cost share (area-weighted), edge band cost.
 // Returns Map<grupoNombre, { piezas, area_m2, canto_m, costoPlaca, costoCanto }>
