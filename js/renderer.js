@@ -468,67 +468,86 @@ function escapeHtml(s) {
 // Suggestions (Level 1): detect pieces that could grow into adjacent sobrante
 // =========================================================================
 
-// For each placed piece, look for sobrantes adjacent to its right/bottom edges
-// that fully cover its perpendicular range. If found, suggest extending the
-// piece by the sobrante's parallel dimension. Returns one suggestion per
-// (piezaId, eje) keeping the largest extension.
+// For each pieza definition, collect the AVAILABLE extension of EACH placed
+// instance along the piece's own ancho/alto axes (mapped through rotation).
+// The safe extension to apply is the MINIMUM across all instances — because
+// extending the definition affects every copy, and any instance with less
+// room would now overlap with a neighbor.
 function analizarSugerencias(resultado, proyecto, kerf) {
   const TOL = 2;
-  const sugerencias = [];
   const piezaPorId = new Map(proyecto.piezas.map(p => [p.id, p]));
+
+  // Map<piezaId, { ancho: number[], alto: number[] }>
+  // Each entry contains, per instance, the available extension along that
+  // piece-axis. 0 means "no adjacent sobrante / cannot extend".
+  const extensionesPorPieza = new Map();
+
   for (const placa of resultado.placas) {
     for (const c of placa.colocaciones) {
       const pieza = piezaPorId.get(c.piezaId);
       if (!pieza) continue;
+      if (!extensionesPorPieza.has(c.piezaId)) {
+        extensionesPorPieza.set(c.piezaId, { ancho: [], alto: [] });
+      }
+      const d = extensionesPorPieza.get(c.piezaId);
       const cx2 = c.x + c.ancho;
       const cy2 = c.y + c.alto;
+
+      // Extension to the RIGHT in layout coords
+      let rightExt = 0;
       for (const s of placa.sobrantes || []) {
-        // Right neighbor: sobrante starts just after the piece + kerf, covers piece's y span
         if (Math.abs(s.x - (cx2 + kerf)) <= TOL &&
             s.y <= c.y + TOL &&
             (s.y + s.alto) >= cy2 - TOL) {
-          const eje = c.rotada ? 'alto' : 'ancho';
-          const valorActual = pieza[eje];
-          sugerencias.push({
-            piezaId: pieza.id,
-            piezaNombre: pieza.nombre,
-            eje,
-            valorActual,
-            extension: Math.floor(s.ancho),
-            valorNuevo: valorActual + Math.floor(s.ancho),
-            direccion: 'derecha',
-            cantidad: pieza.cantidad,
-          });
+          rightExt = Math.max(rightExt, Math.floor(s.ancho));
         }
-        // Bottom neighbor
+      }
+      // Extension to the BOTTOM in layout coords
+      let bottomExt = 0;
+      for (const s of placa.sobrantes || []) {
         if (Math.abs(s.y - (cy2 + kerf)) <= TOL &&
             s.x <= c.x + TOL &&
             (s.x + s.ancho) >= cx2 - TOL) {
-          const eje = c.rotada ? 'ancho' : 'alto';
-          const valorActual = pieza[eje];
-          sugerencias.push({
-            piezaId: pieza.id,
-            piezaNombre: pieza.nombre,
-            eje,
-            valorActual,
-            extension: Math.floor(s.alto),
-            valorNuevo: valorActual + Math.floor(s.alto),
-            direccion: 'abajo',
-            cantidad: pieza.cantidad,
-          });
+          bottomExt = Math.max(bottomExt, Math.floor(s.alto));
         }
+      }
+
+      // Map layout-axis extension to piece-axis extension (account for rotation).
+      // - not rotada: right → pieza.ancho;  bottom → pieza.alto.
+      // - rotada:     right → pieza.alto;   bottom → pieza.ancho.
+      if (c.rotada) {
+        d.alto.push(rightExt);
+        d.ancho.push(bottomExt);
+      } else {
+        d.ancho.push(rightExt);
+        d.alto.push(bottomExt);
       }
     }
   }
-  // Deduplicate by piezaId+eje, keep the largest extension
-  const dedup = new Map();
-  for (const s of sugerencias) {
-    const k = s.piezaId + ':' + s.eje;
-    if (!dedup.has(k) || dedup.get(k).extension < s.extension) dedup.set(k, s);
+
+  // Build suggestions using the MIN extension across all instances.
+  const sugerencias = [];
+  for (const [piezaId, d] of extensionesPorPieza) {
+    const pieza = piezaPorId.get(piezaId);
+    if (!pieza) continue;
+    for (const eje of ['ancho', 'alto']) {
+      const exts = d[eje];
+      // Need at least one entry per instance. If any instance is missing data
+      // (e.g., piece wasn't placed), skip — can't guarantee safety.
+      if (exts.length < pieza.cantidad) continue;
+      const min = Math.min(...exts);
+      if (min < 20) continue;
+      const valorActual = pieza[eje];
+      sugerencias.push({
+        piezaId, piezaNombre: pieza.nombre,
+        eje, valorActual,
+        extension: min,
+        valorNuevo: valorActual + min,
+        cantidad: pieza.cantidad,
+      });
+    }
   }
-  // Filter trivially small extensions (<20 mm) — not worth surfacing
-  return [...dedup.values()].filter(s => s.extension >= 20)
-    .sort((a, b) => b.extension - a.extension);
+  return sugerencias.sort((a, b) => b.extension - a.extension);
 }
 
 function renderSugerencias(sugerencias, proyecto, callbacks) {
@@ -547,7 +566,7 @@ function renderSugerencias(sugerencias, proyecto, callbacks) {
       <span class="sug-texto">
         <strong>${escapeHtml(grupo)} · ${escapeHtml(s.piezaNombre)}</strong>:
         extender <em>${s.eje}</em> de <strong>${s.valorActual}</strong> a <strong>${s.valorNuevo}</strong> mm
-        (+${s.extension} mm hacia la ${s.direccion}${s.cantidad > 1 ? `, afecta ${s.cantidad} copias` : ''})
+        (+${s.extension} mm${s.cantidad > 1 ? `, afecta ${s.cantidad} copias` : ''})
       </span>
       <button class="sug-aplicar primary">Aplicar</button>
     `;
